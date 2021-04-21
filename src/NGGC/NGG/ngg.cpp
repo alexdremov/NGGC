@@ -1,31 +1,22 @@
-//
-// Created by Александр Дремов on 09.04.2021.
-//
-#include <MachOBuilder.h>
-#include <cstdio>
 #include "LexicalAnalysis/LexParser.h"
 #include "Compiler/NGGCompiler.h"
 #include "Helpers/ParamsParser.h"
-#include "core/bgen/FastStackController.h"
+
 
 int main(const int argc, const char *argv[]) {
-    CLParams params = {};
+    auto params = CLParams {};
     params.init();
     bool result = params.parseArgs(argc, argv);
+
     if (!result) {
-        printf("error: nggc: Error processing command line arguments\n");
+        printf("error: ngg: Error processing command line arguments\n");
         return EXIT_FAILURE;
     }
 
-    NGGC::NGGCompiler compiler = {};
+    NGG::NGGCompiler compiler = {};
     compiler.init();
 
-    if (!compiler.loadFile(params.inputFileName)){
-        printf("error: nggc: can't load %s file\n", params.inputFileName);
-        compiler.dest();
-        params.dest();
-        return EXIT_FAILURE;
-    }
+    compiler.loadFile(params.inputFileName);
     if (params.lexemes)
         compiler.printLexemes(params.lexFileName);
 
@@ -51,6 +42,14 @@ int main(const int argc, const char *argv[]) {
         compiler.dest();
         params.dest();
         return EXIT_FAILURE;
+    }
+
+    compiler.saveAsmSource("a.spus");
+
+    NGG::NGGCompiler::genBytecode("a.spus", params);
+
+    if (!params.keepCode) {
+        system("rm a.spus");
     }
     compiler.dest();
     params.dest();
