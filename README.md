@@ -47,6 +47,7 @@ def identifier(a, b, c, ...) {
 Return value: ret ... ;
 Every function returns some value even if it is unspecified.
 All local variables are mutable.
+All functions can be accessed from extern object files.
 
 ### Operations:
 \*, -, +, / (int division) <, >, <=, >=, !=, ==,
@@ -59,12 +60,13 @@ let something;
 ```
 
 ### Polymorphysm 
-Functions can have the same name and different number of arguments.
+Functions can have the same name and different number of arguments in the same file.
 ```python
 def poly(a) {
   print a;
 }
-
+```
+```python
 def poly(a, b) {
   print a * b;
 }
