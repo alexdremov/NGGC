@@ -1,7 +1,0 @@
-https://www.objc.io/issues/6-build-tools/mach-o-executables/
-
-otool -v -l a.out
-otool -v -l machoTest
-
-otool -v -h a.out
-otool -v -h machoTest
