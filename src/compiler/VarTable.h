@@ -77,7 +77,8 @@ namespace NGGC {
             auto *list = storage.top();
             list->dest();
             storage.pop();
-            offsetTop -= storage.getSize();
+            if (storage.isEmpty())
+                offsetTop = 0;
         }
 
         void addNewLevel() {
@@ -89,9 +90,9 @@ namespace NGGC {
         }
 
         void init() {
+            offsetTop = 0;
             storage.init(5);
             addNewLevel();
-            offsetTop = 0;
         }
 
         void dest() {

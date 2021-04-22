@@ -101,9 +101,16 @@ struct CLParams {
         }
 
         if (this->outputFileName == nullptr) {
-            this->outputFileName = "a.out";
-            if (this->objOnly)
-                this->outputFileName = "object.o";
+            StrContainer outFileName = {};
+            outFileName.init();
+            if (this->objOnly){
+                outFileName.append(inputFileName);
+                outFileName.append(".o");
+                this->outputFileName = outFileName.begin();
+            }else{
+                outFileName.append("a.out");
+                this->outputFileName = outFileName.begin();
+            }
         }
 
         int outLen = strlen(outputFileName);

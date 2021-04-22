@@ -31,9 +31,8 @@ class FastStackController {
     }
 
     void popRegisterStack(ByteContainer &container, unsigned reg) {
-        const movCommand& cmd = MOV_TABLE[reg][regs[regsUsed]];
+        const movCommand& cmd = MOV_TABLE[reg][regs[--regsUsed]];
         container.append(reinterpret_cast<const char *>(cmd.bytecode), 3);
-        regsUsed--;
     }
 
 public:

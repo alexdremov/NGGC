@@ -167,6 +167,22 @@ def xorDefines() -> str:
         strDefine += "#define XOR_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
     return strDefine
 
+def cmpDefines() -> str:
+    table = generalCommandTwoRegs(0x39)
+    strDefine = "\n"
+    for label, opcode in table.items():
+        label = label.upper()
+        strDefine += "#define CMP_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
+    return strDefine
+
+def testDefines() -> str:
+    table = generalCommandTwoRegs(0x85)
+    strDefine = "\n"
+    for label, opcode in table.items():
+        label = label.upper()
+        strDefine += "#define TEST_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
+    return strDefine
+
 
 def subCommandDefines() -> str:
     table = {}
@@ -260,6 +276,8 @@ def genMovTable() -> dict:
             table["MEM_" + registers[j][0] + "_displ32" + registers[i][0]] = [
                 regToRegCodes[registers[j][1][0] + registers[i][1][1]],
                 movOpCode, startCode]
+            if registers[j][0] == "rsp":
+                table["MEM_" + registers[j][0] + "_displ32" + registers[i][0]].append(0x24)
             startCode += 1
             if (j == 7):
                 startCode -= 8
@@ -272,6 +290,8 @@ def genMovTable() -> dict:
             table["MEM_" + registers[j][0] + "_displ8" + registers[i][0]] = [
                 regToRegCodes[registers[j][1][0] + registers[i][1][1]],
                 movOpCode, startCode]
+            if registers[j][0] == "rsp":
+                table["MEM_" + registers[j][0] + "_displ8" + registers[i][0]].append(0x24)
             startCode += 1
             if (j == 7):
                 startCode -= 8
@@ -353,7 +373,9 @@ if "__main__" == __name__:
                                 subCommandDefines() +
                                 imulCommandDefines() +
                                 idivDefines() +
-                                xorDefines())
+                                xorDefines()+
+                                cmpDefines()+
+                                testDefines())
     template = template.replace("{{REGNUM}}", str(len(registers)))
     template = template.replace("{{MAXLEN}}", str(maxOpcode))
 

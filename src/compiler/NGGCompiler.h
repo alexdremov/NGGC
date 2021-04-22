@@ -12,18 +12,22 @@
 #include "core/eloquent/ASMStructure/ElCommand.h"
 
 namespace NGGC {
-    struct offset{
+    struct offset {
         size_t value;
-        void dest(){}
-        offset(size_t val): value(val) {}
-        offset(int val): value(val) {}
 
-        explicit operator size_t(){
+        void dest() {}
+
+        offset(size_t val) : value(val) {}
+
+        explicit offset(int val) : value(val) {}
+
+        explicit operator size_t() const {
             return value;
         }
     };
+
     struct functionDefinition {
-        ClassicStack <offset> usages;
+        ClassicStack<offset> usages;
         size_t definitionOffset;
 
         void init() {
@@ -38,19 +42,19 @@ namespace NGGC {
     };
 
     class NGGCompiler {
-        HashMasm<ClassicStack < size_t>> globalVars;
+        HashMasm<ClassicStack<size_t>> globalVars;
         HashMasm<functionDefinition> functions;
-        ClassicStack <CompileError> *cErrors;
+        ClassicStack<CompileError> *cErrors;
         FastStackController stack;
         FastList<Lexeme> *parsed;
         ByteContainer *compiled;
         size_t lastDescription;
-        const char* fileName;
+        const char *fileName;
         StrContainer listing;
         VarTable table;
         AST tree;
 
-        void addInstructions(const unsigned *arr, const char* description) {
+        void addInstructions(const unsigned *arr, const char *description) {
             addDescription(description);
             while (*arr != COMMANDEND) {
                 compiled->append((char) *arr);
@@ -80,19 +84,21 @@ namespace NGGC {
                 return;
             listing.sEndPrintf("%05d |    ", lastDescription);
             for (; lastDescription < compiled->getLen(); lastDescription++)
-                listing.sEndPrintf("0x%x ",  ((unsigned char *) compiled->getStorage())[lastDescription]);
+                listing.sEndPrintf("0x%x ", ((unsigned char *) compiled->getStorage())[lastDescription]);
             listing.sEndPrintf("\n");
         }
 
-        void printImm32(int32_t offset) {
-            compiled->append((const char*)&offset, sizeof(offset));
+        void printImm32(int32_t num) {
+            addDescription("IMM32");
+            compiled->append((const char *) &num, sizeof(num));
         }
 
-        void printImm8(int8_t offset) {
-            compiled->append((const char*)&offset, sizeof(offset));
+        void printImm8(int8_t num) {
+            addDescription("IMM8");
+            compiled->append((const char *) &num, sizeof(num));
         }
 
-        void storeRaxToOffsetRbp(int32_t offset){
+        void storeRaxToOffsetRbp(int32_t offset) {
             offset *= -1;
             static const unsigned movrbx[] = {
                     MOV_MEM_RBP_DISPL32RAX,
@@ -101,7 +107,7 @@ namespace NGGC {
             printImm32(offset);
         }
 
-        void storeRaxToOffsetRsp(int32_t offset){
+        void storeRaxToOffsetRsp(int32_t offset) {
             offset *= -1;
             static const unsigned movrbx[] = {
                     MOV_MEM_RSP_DISPL32RAX,
@@ -110,7 +116,7 @@ namespace NGGC {
             printImm32(offset);
         }
 
-        void leave(){
+        void leave() {
             static const unsigned leave[] = {POP_RBP, RET, COMMANDEND};
             addInstructions(leave, "Leave");
         }
@@ -214,7 +220,7 @@ namespace NGGC {
             label.sEndPrintf("%zu", argCount);
 
             if (functions.find(label.getStorage()) != functions.end()) {
-                if (functions[label.begin()].definitionOffset != (size_t)-1) {
+                if (functions[label.begin()].definitionOffset != (size_t) -1) {
                     CompileError err {};
                     err.init("Duplicate function declaration", head->getLexeme());
                     err.msg->sEndPrintf("%s", label.getStorage());
@@ -250,7 +256,7 @@ namespace NGGC {
 
         void c_Identifier(ASTNode *head) {
             StrContainer *label = head->getLexeme().getString();
-            Optional <VarSingle> found = table.get(label);
+            Optional<VarSingle> found = table.get(label);
             if (!found.hasValue()) {
                 CompileError err {};
                 err.init("Identifier is not defined: ", head->getLexeme());
@@ -261,14 +267,14 @@ namespace NGGC {
             addDescription("Load variable from memory:", label->begin());
             static const unsigned movOperation[] = {MOV_RAXRBP_MEM_DISPL32, COMMANDEND};
             addInstructions(movOperation);
-            int32_t offset = found->rbpOffset * -1;
+            int32_t offset = (found->rbpOffset + 1) * -8;
             printImm32(offset);
         }
 
         void c_Number(ASTNode *head) {
             static const unsigned movOperation[] = {MOV_RAXIMM32, COMMANDEND};
             addInstructions(movOperation, "Load number");
-            printImm32((int)head->getLexeme().getDouble());
+            printImm32((int) head->getLexeme().getDouble());
         }
 
         void c_Setpix(ASTNode *head) {
@@ -291,21 +297,22 @@ namespace NGGC {
                     break;
                 }
                 case Lex_Minus: {
-                    static const unsigned processed[] = {SUB_RAXRBX, COMMANDEND};
-                    addInstructions(processed, "sub rax, rbx");
+                    static const unsigned processed[] = {SUB_RBXRAX, MOV_RAXRBX, COMMANDEND};
+                    addInstructions(processed, "sub rax, rbx, rax");
                     break;
                 }
-                case Lex_Mul:{
+                case Lex_Mul: {
                     static const unsigned processed[] = {IMUL_RAXRBX, COMMANDEND};
                     addInstructions(processed, "imul rax, rbx");
                     break;
                 }
-                case Lex_Div:{
+                case Lex_Div: {
                     static const unsigned processed[] = {
+                            XCHG_RAXRBX,
                             XOR_RDXRDX,
                             IDIV_RBX,
                             COMMANDEND};
-                    addInstructions(processed, "idiv rax, rbx");
+                    addInstructions(processed, "idiv rbx, rax");
                     break;
                 }
                 case Lex_Pow:
@@ -340,6 +347,7 @@ namespace NGGC {
             static const unsigned movrbx[] = {MOV_RAXRBX, COMMANDEND};
             addInstructions(movrbx, "mov rax, rbx");
             addDescription("Evaluated. Modifying stored value");
+            size_t offset = (found->rbpOffset + 1) * 8;
             switch (type) {
                 case Lex_AdAssg: {
                     processFurther(idNode, true);
@@ -348,27 +356,27 @@ namespace NGGC {
                             COMMANDEND
                     };
                     addInstructions(processed, "add rax, rbx - += operation");
-                    storeRaxToOffsetRbp(found->rbpOffset);
+                    storeRaxToOffsetRbp(offset);
                     break;
                 }
-                case Lex_MiAssg:{
+                case Lex_MiAssg: {
                     processFurther(idNode, true);
                     static const unsigned processed[] = {
                             SUB_RAXRBX,
                             COMMANDEND
                     };
                     addInstructions(processed, "sub rax, rbx - -= operation");
-                    storeRaxToOffsetRbp(found->rbpOffset);
+                    storeRaxToOffsetRbp(offset);
                     break;
                 }
-                case Lex_MuAssg:{
+                case Lex_MuAssg: {
                     processFurther(idNode, true);
                     static const unsigned processed[] = {
                             IMUL_RAXRBX,
                             COMMANDEND
                     };
                     addInstructions(processed, "imul rax, rbx - *= operation");
-                    storeRaxToOffsetRbp(found->rbpOffset);
+                    storeRaxToOffsetRbp(offset);
                     break;
                 }
                 case Lex_DiAssg: {
@@ -379,7 +387,7 @@ namespace NGGC {
                             COMMANDEND
                     };
                     addInstructions(processed, "idiv rax, rbx - /= operation");
-                    storeRaxToOffsetRbp(found->rbpOffset);
+                    storeRaxToOffsetRbp(offset);
                     break;
                 }
                 case Lex_Assg: {
@@ -388,7 +396,7 @@ namespace NGGC {
                             COMMANDEND
                     };
                     addInstructions(processed, "mov rbx, rax - = operation");
-                    storeRaxToOffsetRbp(found->rbpOffset);
+                    storeRaxToOffsetRbp(offset);
                     break;
                 }
                 default: {
@@ -412,13 +420,13 @@ namespace NGGC {
                 return;
             }
 
-            if (head->getLeft() == nullptr || (head->getLeft() != nullptr && head->getLeft()->getKind() == Kind_None)){
+            if (head->getLeft() == nullptr || (head->getLeft() != nullptr && head->getLeft()->getKind() == Kind_None)) {
                 return;
             }
 
             processFurther(head->getLeft(), true);
             Optional<VarSingle> found = table.get(type.getString());
-            storeRaxToOffsetRbp(found->rbpOffset);
+            storeRaxToOffsetRbp((found->rbpOffset + 1) * 8);
         }
 
         void c_MaUnOperator(ASTNode *head) {
@@ -442,40 +450,46 @@ namespace NGGC {
 
         void c_FuncCall(ASTNode *head, bool valueNeeded = false) {
             ASTNode *lastNode = head->getLeft();
-
-            if (table.getLocalOffset() != 0) {
+            size_t rspShift = table.getLocalOffset();
+            rspShift += rspShift % 16;
+            if (rspShift != 0) {
                 static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
                 addInstructions(moversp, "sub rsp, imm32 - moving rsp before function call");
-                printImm32(table.getLocalOffset());
+                printImm32((rspShift) * 8);
             }
 
-            int argOffset = 1; // return address
+            int argOffset = 3; // return address and rbp
             while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
                 processFurther(lastNode->getLeft(), true);
-                static const unsigned movearg[] = {MOV_MEM_RSP_DISPL8RAX, COMMANDEND};
+                static const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
                 addInstructions(movearg, "preparing argument");
-                printImm8(argOffset * -1);
+                printImm32(argOffset * -8);
                 lastNode = lastNode->getRight();
                 argOffset++;
             }
 
             StrContainer label {};
             label.init(head->getLexeme().getString()->begin());
-            label.sEndPrintf("%d", argOffset - 1);
+            label.sEndPrintf("%d", argOffset - 3);
 
             call(label);
+            if (rspShift != 0) {
+                static const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
+                addInstructions(moversp, "add rsp, imm32 - moving rsp after function call");
+                printImm32((rspShift) * 8);
+            }
         }
 
         void call(const StrContainer &label) {
             stack.saveStack(*compiled);
 
             auto foundFunc = functions.find(label.begin());
-            if (foundFunc == functions.end()){
+            if (foundFunc == functions.end()) {
                 functions[label.begin()].init();
                 functions[label.begin()].definitionOffset = -1;
                 foundFunc = functions.find(label.begin());
             }
-            foundFunc->value.usages.push(compiled->getLen() + 1);
+            foundFunc->value.usages.push((size_t) compiled->getLen() + 1);
             static const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
@@ -484,19 +498,69 @@ namespace NGGC {
         }
 
         void c_CmpOperator(ASTNode *head) {
+            auto type = head->getLexeme().getType();
+
+            processFurther(head->getLeft(), true);
+            stack.push(*compiled, REG_RAX);
+            processFurther(head->getRight(), true);
+            stack.pop(*compiled, REG_RDX);
+            const static unsigned preparecmp[] = {XCHG_RAXRBX, XOR_RAXRAX, CMP_RBXRDX, COMMANDEND};
+            addInstructions(preparecmp, "Now cmp arguments in rbx and rdx, rax = 0");
+            const static unsigned valid[] = {MOV_RAXIMM32, 0x01, 0x00, 0x00, 0x00, COMMANDEND};
+            const static unsigned commSize = sizeof(valid) / sizeof(valid[0]) - 1;
+            switch (type) {
+                case Lex_Eq: {
+                    const static unsigned jumpWrong[] = {JNE_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "equal expected");
+                    break;
+                }
+                case Lex_Leq: {
+                    const static unsigned jumpWrong[] = {JL_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "less equal expected");
+                    break;
+                }
+                case Lex_Geq: {
+                    const static unsigned jumpWrong[] = {JG_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "greater equal expected");
+                    break;
+                }
+                case Lex_Neq: {
+                    const static unsigned jumpWrong[] = {JE_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "not equal expected");
+                    break;
+                }
+                case Lex_Gr: {
+                    const static unsigned jumpWrong[] = {JGE_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "greater expected");
+                    break;
+                }
+                case Lex_Le: {
+                    const static unsigned jumpWrong[] = {JLE_REL8, (char) commSize, COMMANDEND};
+                    addInstructions(jumpWrong, "less expected");
+                    break;
+                }
+                default: {
+                    CompileError err {};
+                    err.init("Unknown operator in c_CmpOperator: ", head->getLexeme());
+                    err.msg->sEndPrintf("%s", lexemeTypeToString(type));
+                    cErrors->push(err);
+                    return;
+                }
+            }
+            addInstructions(valid, "set rax to 1");
         }
 
         void c_ReturnStmt(ASTNode *head) {
+            if (head->getLeft())
+                processFurther(head->getLeft(), true);
             leave();
-            static const unsigned ret[] = {RET, COMMANDEND};
-            addInstructions(ret, "return");
         }
 
         void c_Print(ASTNode *head) {
             processFurther(head->getLeft(), true);
             static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
-            call("__Z5printi");
+            call("__Z5printx");
         }
 
         void c_Input(ASTNode *head) {
@@ -504,15 +568,43 @@ namespace NGGC {
         }
 
         void c_IfStmt(ASTNode *head) {
-        }
+            ASTNode *ifBranch = head->getRight()->getLeft();
+            ASTNode *elseBranch = head->getRight()->getRight();
+            processFurther(head->getLeft(), true);
 
-        void c_None() {
+            const static unsigned ifcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
+            addInstructions(ifcmd, "If compare head");
+            size_t jumpNumberPos = compiled->getLen();
+            printImm32(0);
+            size_t trueBranchStart = compiled->getLen();
+            processFurther(ifBranch);
+            size_t trueBranchEnd = compiled->getLen();
+            if (elseBranch != nullptr && elseBranch->getKind() != Kind_None) {
+                const static unsigned elsecmd[] = {JMP_REL32, COMMANDEND};
+                addInstructions(elsecmd, "else command");
+                size_t jumpElseNumberPos = compiled->getLen();
+                printImm32(0);
+                trueBranchEnd = compiled->getLen();
+                processFurther(elseBranch);
+                size_t elseBranchEnd = compiled->getLen();
+
+                int32_t elseDisplacement = elseBranchEnd - trueBranchEnd;
+                compiled->append((char*)&elseDisplacement, sizeof(elseDisplacement), jumpElseNumberPos);
+                int32_t displacement = trueBranchEnd - trueBranchStart;
+                compiled->append((char*)&displacement, sizeof(displacement), jumpNumberPos);
+            } else {
+                int32_t displacement = trueBranchEnd - trueBranchStart;
+                compiled->append((char*)&displacement, sizeof(displacement), jumpNumberPos);
+            }
         }
 
         void c_WhileStmt(ASTNode *head) {
         }
 
         void c_BasicFunction(ASTNode *head, bool valueNeeded = false) {
+        }
+
+        void c_None() {
         }
 
     public:
@@ -624,11 +716,11 @@ namespace NGGC {
             ASTLoader::dump(tree.getHead(), file);
         }
 
-        const StrContainer& getListing() {
+        const StrContainer &getListing() {
             return listing;
         }
 
-        void genObject(const char* file){
+        void genObject(const char *file) {
             FILE *res = fopen(file, "wb");
             binaryFile binary = {};
             binary.init(res);
@@ -644,16 +736,16 @@ namespace NGGC {
             mgen.addCode(compiled->begin(), compiled->getLen());
             mgen.addData(data, sizeof(data));
 
-            for(auto& elem: functions){
+            for (auto &elem: functions) {
                 StrContainer label = {};
                 label.init("_");
                 label.sEndPrintf("%s", elem.key);
-                if(elem.value.definitionOffset != size_t (-1)){
+                if (elem.value.definitionOffset != size_t(-1)) {
                     mgen.addInternalCodeSymbol(label.begin(), elem.value.definitionOffset);
-                    for (auto& usage: elem.value.usages)
+                    for (auto &usage: elem.value.usages)
                         mgen.bindSignedOffset(label.begin(), usage.value);
                 } else {
-                    for (auto& usage: elem.value.usages)
+                    for (auto &usage: elem.value.usages)
                         mgen.bindBranchExt(elem.key, usage.value);
                 }
                 label.dest();

@@ -83,10 +83,9 @@ public:
         len += size;
     }
 
-    void appendReversed(const char* str, size_t size) {
+    void append(const char* str, size_t size, size_t offset) {
         reallocateDouble(size + 1);
-        for(int i = size - 1; i >=0; i--)
-            append(str[i]);
+        memcpy(storage + offset, str, size);
     }
 
     [[nodiscard]] char* begin() const {

@@ -20,6 +20,25 @@
 #define CALL_REL 0xE8
 #define RET 0xC3
 
+#define JE_REL8 0x74
+#define JNE_REL8 0x75
+#define JL_REL8 0x7C
+#define JLE_REL8 0x7E
+#define JG_REL8 0x7F
+#define JGE_REL8 0x7D
+#define JMP_REL8 0xEB
+
+#define JE_REL32 0x0F, 0x84
+#define JNE_REL32 0x0F, 0x85
+#define JL_REL32 0x0F, 0x8C
+#define JLE_REL32 0x0F, 0x8E
+#define JG_REL32 0x0F, 0x8F
+#define JGE_REL32 0x0F, 0x8D
+#define JMP_REL32 0xE9
+
+
+#define XCHG_RAXRBX 0x48, 0x93
+
 struct movCommand {
     unsigned char bytecode[3];
 };

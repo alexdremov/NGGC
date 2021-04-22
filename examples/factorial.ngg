@@ -1,5 +1,8 @@
-def giveYouUp() {
-    let i = 123;
-    print(6);
-    print(i);
+def giveYouUp(){
+	let x = input;
+	if(x == -2){
+		print(1);
+	} else {
+		print(0);
+	}
 }
