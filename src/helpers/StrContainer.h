@@ -22,13 +22,6 @@ class StrContainer {
     }
 
 public:
-    StrContainer(const char* val){
-        init(val);
-    }
-
-    StrContainer(){
-        init();
-    }
 
     void init(){
         storage = nullptr;

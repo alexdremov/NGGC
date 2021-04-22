@@ -577,11 +577,17 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
             static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
-            call("_print", true);
+            StrContainer label = {};
+            label.init("_print");
+            call(label, true);
+            label.dest();
         }
 
         void c_Input(ASTNode *head) {
-            call("_in", true);
+            StrContainer label = {};
+            label.init("_in");
+            call(label, true);
+            label.dest();
         }
 
         void c_IfStmt(ASTNode *head) {
