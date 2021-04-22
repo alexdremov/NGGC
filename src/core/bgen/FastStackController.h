@@ -25,13 +25,13 @@ class FastStackController {
     size_t top;
 
     void pushRegisterStack(ByteContainer &container, unsigned reg) {
-        const movCommand& cmd = MOV_TABLE[regs[regsUsed]][reg];
+        const movCommand &cmd = MOV_TABLE[regs[regsUsed]][reg];
         container.append(reinterpret_cast<const char *>(cmd.bytecode), 3);
         regsUsed++;
     }
 
     void popRegisterStack(ByteContainer &container, unsigned reg) {
-        const movCommand& cmd = MOV_TABLE[reg][regs[--regsUsed]];
+        const movCommand &cmd = MOV_TABLE[reg][regs[--regsUsed]];
         container.append(reinterpret_cast<const char *>(cmd.bytecode), 3);
     }
 
@@ -52,13 +52,13 @@ public:
         top--;
     }
 
-    void saveStack(ByteContainer &container) const{
+    void saveStack(ByteContainer &container) const {
         for (unsigned i = 0; i < regsUsed; i++)
             container.append(PUSH_TABLE[regs[i]]);
     }
 
-    void restoreStack(ByteContainer &container) const{
-        for (int i = (int)regsUsed - 1; i >= 0; i--)
+    void restoreStack(ByteContainer &container) const {
+        for (int i = (int) regsUsed - 1; i >= 0; i--)
             container.append(POP_TABLE[regs[i]]);
     }
 
@@ -83,6 +83,10 @@ public:
     static void Delete(FastStackController *thou) {
         thou->dest();
         free(thou);
+    }
+
+    size_t getTop() const {
+        return top;
     }
 };
 

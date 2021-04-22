@@ -344,8 +344,8 @@ namespace NGGC {
             }
             addDescription("Processing assignment type node. Evaluating rvalue");
             processFurther(valNode, true);
-            static const unsigned movrbx[] = {MOV_RAXRBX, COMMANDEND};
-            addInstructions(movrbx, "mov rax, rbx");
+            static const unsigned movrbx[] = {MOV_RBXRAX, COMMANDEND};
+            addInstructions(movrbx, "mov rbx, rax");
             addDescription("Evaluated. Modifying stored value");
             size_t offset = (found->rbpOffset + 1) * 8;
             switch (type) {
@@ -362,7 +362,8 @@ namespace NGGC {
                 case Lex_MiAssg: {
                     processFurther(idNode, true);
                     static const unsigned processed[] = {
-                            SUB_RAXRBX,
+                            SUB_RBXRAX,
+                            MOV_RAXRBX,
                             COMMANDEND
                     };
                     addInstructions(processed, "sub rax, rbx - -= operation");
@@ -383,6 +384,7 @@ namespace NGGC {
                     processFurther(idNode, true);
                     static const unsigned processed[] = {
                             XOR_RDXRDX,
+                            XCHG_RAXRBX,
                             IDIV_RBX,
                             COMMANDEND
                     };
@@ -450,13 +452,7 @@ namespace NGGC {
 
         void c_FuncCall(ASTNode *head, bool valueNeeded = false) {
             ASTNode *lastNode = head->getLeft();
-            size_t rspShift = table.getLocalOffset();
-            rspShift += rspShift % 16;
-            if (rspShift != 0) {
-                static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
-                addInstructions(moversp, "sub rsp, imm32 - moving rsp before function call");
-                printImm32((rspShift) * 8);
-            }
+            size_t rspShift = shiftRspBeforeCall();
 
             int argOffset = 3; // return address and rbp
             while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
@@ -473,6 +469,10 @@ namespace NGGC {
             label.sEndPrintf("%d", argOffset - 3);
 
             call(label);
+            shiftRspAfterCall(rspShift);
+        }
+
+        void shiftRspAfterCall(size_t rspShift) {
             if (rspShift != 0) {
                 static const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
                 addInstructions(moversp, "add rsp, imm32 - moving rsp after function call");
@@ -480,7 +480,21 @@ namespace NGGC {
             }
         }
 
-        void call(const StrContainer &label) {
+        size_t shiftRspBeforeCall() {
+            size_t rspShift = table.getLocalOffset() + stack.getTop();
+            rspShift += rspShift % 16;
+            if (rspShift != 0) {
+                static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
+                addInstructions(moversp, "sub rsp, imm32 - moving rsp before function call");
+                printImm32((rspShift) * 8);
+            }
+            return rspShift;
+        }
+
+        void call(const StrContainer &label, bool shift=false) {
+            size_t rspShift = 0;
+            if (shift)
+                rspShift = shiftRspBeforeCall();
             stack.saveStack(*compiled);
 
             auto foundFunc = functions.find(label.begin());
@@ -493,8 +507,9 @@ namespace NGGC {
             static const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
-
             stack.restoreStack(*compiled);
+            if (shift)
+                shiftRspAfterCall(rspShift);
         }
 
         void c_CmpOperator(ASTNode *head) {
@@ -560,11 +575,11 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
             static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
-            call("__Z5printx");
+            call("__Z5printx", true);
         }
 
         void c_Input(ASTNode *head) {
-            call("__Z2inv");
+            call("__Z2inv", true);
         }
 
         void c_IfStmt(ASTNode *head) {
@@ -589,23 +604,50 @@ namespace NGGC {
                 size_t elseBranchEnd = compiled->getLen();
 
                 int32_t elseDisplacement = elseBranchEnd - trueBranchEnd;
-                compiled->append((char*)&elseDisplacement, sizeof(elseDisplacement), jumpElseNumberPos);
+                compiled->append((char *) &elseDisplacement, sizeof(elseDisplacement), jumpElseNumberPos);
                 int32_t displacement = trueBranchEnd - trueBranchStart;
-                compiled->append((char*)&displacement, sizeof(displacement), jumpNumberPos);
+                compiled->append((char *) &displacement, sizeof(displacement), jumpNumberPos);
             } else {
                 int32_t displacement = trueBranchEnd - trueBranchStart;
-                compiled->append((char*)&displacement, sizeof(displacement), jumpNumberPos);
+                compiled->append((char *) &displacement, sizeof(displacement), jumpNumberPos);
             }
         }
 
         void c_WhileStmt(ASTNode *head) {
+            size_t beginPosition = compiled->getLen();
+            addDescription("While condition");
+
+            processFurther(head->getLeft(), true);
+
+            const static unsigned whileExitcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
+            addInstructions(whileExitcmd, "while compare head");
+            size_t jumpNumberPos = compiled->getLen();
+            printImm32(0);
+
+            size_t bodyStart = compiled->getLen();
+            processFurther(head->getRight());
+            size_t bodyEnd = compiled->getLen();
+
+            const static unsigned whileIterate[] = {JMP_REL32, COMMANDEND};
+            addInstructions(whileIterate, "while iterate");
+            size_t jumpNumberPosIter = compiled->getLen();
+            printImm32(0);
+            size_t endPosition = compiled->getLen();
+
+            int32_t displacement = int32_t(endPosition) - bodyStart;
+            compiled->append((char*)(&displacement), sizeof(displacement), jumpNumberPos);
+
+            auto displacementIter = int32_t(bodyEnd - beginPosition) * -1 - 5;
+            compiled->append((char*)(&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
         }
 
         void c_BasicFunction(ASTNode *head, bool valueNeeded = false) {
+            CompileError err {};
+            err.init("Unsupported at this time: ", head->getLexeme());
+            cErrors->push(err);
         }
 
-        void c_None() {
-        }
+        void c_None() {}
 
     public:
         void init() {

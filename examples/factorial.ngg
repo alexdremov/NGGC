@@ -1,8 +1,6 @@
-def giveYouUp(){
-	let x = input;
-	if(x == -2){
-		print(1);
-	} else {
-		print(0);
-	}
+def fact(x) {
+    if (x <= 1){
+        ret 1;
+    }
+    ret fact(x - 1) * x;
 }

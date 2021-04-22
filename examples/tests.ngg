@@ -1,10 +1,8 @@
-def giveYouUp(){
-	print fact(input);
-}
-
-def fact(x) {
-    if (x <= 1){
-        ret 1;
-    }
-    ret fact(x - 1) * x;
+def giveYouUp() {
+	let x = 0;
+	let userData = input;
+	while(x < userData) {
+	    print(x);
+	    x += 1;
+	}
 }
