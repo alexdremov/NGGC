@@ -79,6 +79,8 @@ namespace NGGC {
             storage.pop();
             if (storage.isEmpty())
                 offsetTop = 0;
+            else
+                offsetTop -= storage.top()->getSize();
         }
 
         void addNewLevel() {

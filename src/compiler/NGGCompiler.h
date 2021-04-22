@@ -264,6 +264,7 @@ namespace NGGC {
                 cErrors->push(err);
                 return;
             }
+
             addDescription("Load variable from memory:", label->begin());
             static const unsigned movOperation[] = {MOV_RAXRBP_MEM_DISPL32, COMMANDEND};
             addInstructions(movOperation);

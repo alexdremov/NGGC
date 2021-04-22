@@ -1,3 +1,13 @@
+def giveYouUp() {
+	let x = 0;
+	let userData = 100000;
+	print(fact(19));
+	while(x < userData) {
+	    fact(20);
+	    x += 1;
+	}
+}
+
 def fact(x) {
     if (x <= 1){
         ret 1;

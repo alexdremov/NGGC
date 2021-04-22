@@ -1,8 +1,16 @@
 def giveYouUp() {
 	let x = 0;
-	let userData = input;
+	let userData = 100000;
+	print(fact(20));
 	while(x < userData) {
-	    print(x);
+	    fact(20);
 	    x += 1;
 	}
+}
+
+def fact(z) {
+    if (z <= 1){
+        ret 1;
+    }
+    ret fact(z - 1) * z;
 }
