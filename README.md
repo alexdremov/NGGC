@@ -1,10 +1,6 @@
 # NGGC
 Compilable to Mach-O Never Gonna Give you up© programming language
 
-## Requirment
-
-Requires MachOBuilder to be installed: https://github.com/AlexRoar/MachOBuilder
-
 ## Features
 
 - x86_64 compilable
@@ -15,6 +11,19 @@ Requires MachOBuilder to be installed: https://github.com/AlexRoar/MachOBuilder
 
 - Full System V support -> call any C or C++ function
 
+## Requirment
+
+Requires MachOBuilder to be installed: https://github.com/AlexRoar/MachOBuilder
+
+## Installation
+
+```shell
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j3
+make install -j3
+```
 
 ## Examples
 
@@ -52,7 +61,7 @@ All local variables are mutable.
 All functions can be accessed from extern object files.
 
 ### Operations:
-\*, -, +, / (int division) <, >, <=, >=, !=, ==,
+\*, -, +, / (int division), <, >, <=, >=, !=, ==,
 
 ### Var declaration
 Variables must be declared before their first use.
