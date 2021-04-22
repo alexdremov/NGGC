@@ -52,7 +52,7 @@ All local variables are mutable.
 All functions can be accessed from extern object files.
 
 ### Operations:
-\*, -, +, / (int division) <, >, <=, >=, !=, ==,
+\*, -, +, / (int division), <, >, <=, >=, !=, ==,
 
 ### Var declaration
 Variables must be declared before their first use.
