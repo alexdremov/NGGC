@@ -26,7 +26,7 @@ namespace NGGC {
             lexeme.init();
         }
 
-        void init(ASTNodeKind nodeKind, Lexeme lex, ASTNode* nodeLeft = nullptr, ASTNode* nodeRight = nullptr) {
+        void init(ASTNodeKind nodeKind, const Lexeme& lex, ASTNode* nodeLeft = nullptr, ASTNode* nodeRight = nullptr) {
             this->kind = nodeKind;
             this->lexeme = lex;
             this->left = nodeLeft;

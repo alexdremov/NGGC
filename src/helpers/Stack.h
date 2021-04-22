@@ -84,7 +84,7 @@ public:
     void dest() {
         for (size_t i = 0; i < size; i++)
             data[i].dest();
-        if (data != nullptr) {
+        if (data) {
             free(data);
             data = reinterpret_cast<Elem *>(0xBADF);
         }

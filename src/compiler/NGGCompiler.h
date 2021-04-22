@@ -471,6 +471,7 @@ namespace NGGC {
 
             call(label);
             shiftRspAfterCall(rspShift);
+            label.dest();
         }
 
         void shiftRspAfterCall(size_t rspShift) {
@@ -672,7 +673,13 @@ namespace NGGC {
         void dest() {
             ClassicStack<CompileError>::Delete(cErrors);
             ByteContainer::Delete(compiled);
+            for (auto i = functions.begin(); i != functions.end(); i++){
+                (*i).value.dest();
+                i->dest();
+            }
             functions.dest();
+            for (auto i = globalVars.begin(); i != globalVars.end(); i++)
+                i->dest();
             globalVars.dest();
             parsed->Delete();
             listing.dest();
@@ -716,6 +723,7 @@ namespace NGGC {
             ASTParser.init();
             ASTParser.parse(res);
             this->tree = ASTParser;
+            this->parsed->Delete();
             this->parsed = res;
             content.dest();
             return true;

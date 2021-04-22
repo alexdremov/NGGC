@@ -66,6 +66,7 @@ int main(const int argc, const char *argv[]) {
             command.sEndPrintf(" && rm %s", params.outputObjName);
         }
         system(command.begin());
+        command.dest();
     }
 
     compiler.dest();

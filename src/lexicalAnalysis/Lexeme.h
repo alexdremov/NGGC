@@ -50,8 +50,10 @@ namespace NGGC {
         }
 
         void dest() {
-            if (sContent)
+            if (sContent) {
                 StrContainer::Delete(sContent);
+                sContent = nullptr;
+            }
         }
 
         static Lexeme *New() {
