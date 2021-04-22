@@ -12,7 +12,11 @@ include_directories(src src/helpers src/NGGC src/core/bgen src/core/eloquent/ASM
 set(CORE_CPPS "src/core.cpp")
 add_executable(nggc ${CORE_CPPS})
 
+set(CORELOL_CPPS "src/corelol.cpp")
+add_executable(nggclol ${CORELOL_CPPS})
+
 target_link_libraries(nggc MachOBuilder)
+target_link_libraries(nggclol MachOBuilder)
 
 add_custom_command(TARGET nggc
         PRE_BUILD
@@ -25,7 +29,6 @@ add_custom_command(TARGET nggc
         MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/stdlib/stdlib.cpp
         COMMAND cd ${CMAKE_SOURCE_DIR}/src/stdlib/ && clang -Wl,-undefined -Wl,dynamic_lookup -dynamiclib stdlib.cpp -o nggstdlib.dylib && mv nggstdlib.dylib /usr/local/lib/nggstdlib.dylib)
 
-
 add_custom_command(TARGET nggc
         POST_BUILD
         MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/stdlib/stdlib.cpp
@@ -33,4 +36,7 @@ add_custom_command(TARGET nggc
 
 
 install(TARGETS nggc
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+install(TARGETS nggclol
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

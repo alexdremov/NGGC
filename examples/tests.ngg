@@ -14,3 +14,11 @@ def fact(z) {
     }
     ret fact(z - 1) * z;
 }
+
+def poly(a) {
+    print a;
+}
+
+def poly(a, b) {
+    print a * b;
+}

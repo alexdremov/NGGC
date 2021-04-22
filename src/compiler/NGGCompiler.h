@@ -576,11 +576,11 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
             static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
-            call("__Z5printx", true);
+            call("_print", true);
         }
 
         void c_Input(ASTNode *head) {
-            call("__Z2inv", true);
+            call("_in", true);
         }
 
         void c_IfStmt(ASTNode *head) {
