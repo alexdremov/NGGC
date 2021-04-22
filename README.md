@@ -17,7 +17,7 @@ Requires MachOBuilder to be installed: https://github.com/AlexRoar/MachOBuilder
 
 ## Installation
 
-```shell
+```bash
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -42,6 +42,22 @@ def fact(x) {
     
     ret fact(x - 1) * x;
 }
+```
+
+## Usage
+
+```bash
+NGGC help
+--input        <input file> input file to be compiled .ngg format (source)
+-o, --output   <output file> output file. a.out by default (mach-o executable)
+-h, --help     show this help message
+-c             object file only
+-C             keep object file
+--verbose      output debug information to the console
+--lex          <.lex file> file to dump lexemes
+--lst          <.lst file> file to dump detailed listing
+-g             generate AST graph
+-d             dump AST graph
 ```
 
 ## Structure
