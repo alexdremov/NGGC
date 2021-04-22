@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include <cctype>
-#include "Helpers/Optional.h"
+#include "helpers/Optional.h"
 #include "Lexeme.h"
 #include "LexemeType.h"
 

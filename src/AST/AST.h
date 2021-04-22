@@ -6,10 +6,10 @@
 #define NGG_AST_H
 
 #include "ASTNode.h"
-#include "LexicalAnalysis/Lexeme.h"
-#include "Helpers/Optional.h"
+#include "lexicalAnalysis/Lexeme.h"
+#include "helpers/Optional.h"
 #include "ParsePosition.h"
-#include "Helpers/Stack.h"
+#include "helpers/Stack.h"
 #include "ASTError.h"
 
 #define LEX_SET_IF_NONE(storage, lex) \

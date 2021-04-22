@@ -7,11 +7,7 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -Wpedantic -Wall -Wex
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  -L/usr/local/lib")
 
-include_directories(src/Helpers/CppSwiftyList)
-include_directories(src/Helpers)
-include_directories(src/NGGC)
-include_directories(src/core/bgen)
-include_directories(src/core/eloquent/ASMStructure)
+include_directories(src src/helpers src/NGGC src/core/bgen src/core/eloquent/ASMStructure)
 
 set(CORE_CPPS "src/core.cpp")
 add_executable(nggc ${CORE_CPPS})
@@ -20,8 +16,21 @@ target_link_libraries(nggc MachOBuilder)
 
 add_custom_command(TARGET nggc
         PRE_BUILD
-        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/NGGC/core/eloquent/ASMStructure/ElCommand_template.h
-        DEPENDS ${CMAKE_SOURCE_DIR}/src/NGGC/core/eloquent/ASMStructure/ElCommand.h
-        COMMAND cd ${CMAKE_SOURCE_DIR}/src/NGGC/core/eloquent/ASMStructure && python3 eloquentGen.py)
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/core/eloquent/ASMStructure/ElCommand_template.h
+        DEPENDS ${CMAKE_SOURCE_DIR}/src/core/eloquent/ASMStructure/ElCommand.h
+        COMMAND cd ${CMAKE_SOURCE_DIR}/src/core/eloquent/ASMStructure && python3 eloquentGen.py)
 
-add_subdirectory(MachOBuilder)
+add_custom_command(TARGET nggc
+        POST_BUILD
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/stdlib/stdlib.cpp
+        COMMAND cd ${CMAKE_SOURCE_DIR}/src/stdlib/ && clang -Wl,-undefined -Wl,dynamic_lookup -dynamiclib stdlib.cpp -o nggstdlib.dylib && mv nggstdlib.dylib /usr/local/lib/nggstdlib.dylib)
+
+
+add_custom_command(TARGET nggc
+        POST_BUILD
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/stdlib/stdlib.cpp
+        COMMAND cd ${CMAKE_SOURCE_DIR}/src/stdlib/ && clang stdlib.cpp -c -o nggstdlib.o && mv nggstdlib.o /usr/local/lib/nggstdlib.o)
+
+
+install(TARGETS nggc
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

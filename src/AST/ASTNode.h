@@ -5,8 +5,8 @@
 #ifndef NGG_ASTNODE_H
 #define NGG_ASTNODE_H
 #include "ASTNodeKind.h"
-#include "LexicalAnalysis/Lexeme.h"
-#include "LexicalAnalysis/LexemeType.h"
+#include "lexicalAnalysis/Lexeme.h"
+#include "lexicalAnalysis/LexemeType.h"
 
 namespace NGGC {
     class ASTNode {

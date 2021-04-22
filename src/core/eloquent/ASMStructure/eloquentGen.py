@@ -144,6 +144,30 @@ def addCommandDefines() -> str:
     return strDefine
 
 
+def movImmDefines() -> str:
+    res = ""
+    startCode = 0xB8
+    codeNow = startCode
+    for i in range(len(registers)):
+        code = [codeNow]
+        if i == 8:
+            codeNow = startCode
+        if i >= 8:
+            code = [0x41, codeNow]
+        res += "#define MOV_" + registers[i][0].upper() + "IMM32 " + ", ".join(map(hex, code)) + "\n"
+        codeNow += 1
+    return res
+
+
+def xorDefines() -> str:
+    table = generalCommandTwoRegs(0x31)
+    strDefine = "\n"
+    for label, opcode in table.items():
+        label = label.upper()
+        strDefine += "#define XOR_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
+    return strDefine
+
+
 def subCommandDefines() -> str:
     table = {}
     subOpCodeimm8 = 0x83
@@ -261,6 +285,9 @@ def genMovTable() -> dict:
             table[registers[i][0] + registers[j][0] + "_mem_displ32"] = [
                 regToRegCodes[registers[j][1][0] + registers[i][1][1]],
                 movRegToMemCode, startCode]
+            if registers[j][0] == "rsp":
+                table[registers[i][0] + registers[j][0] + "_mem_displ32"].append(0x24)
+
             startCode += 1
             if (j == 7):
                 startCode -= 8
@@ -273,6 +300,8 @@ def genMovTable() -> dict:
             table[registers[i][0] + registers[j][0] + "_mem_displ8"] = [
                 regToRegCodes[registers[j][1][0] + registers[i][1][1]],
                 movRegToMemCode, startCode]
+            if (registers[j][0] == "rsp"):
+                table[registers[i][0] + registers[j][0] + "_mem_displ8"].append(0x24)
             startCode += 1
             if (j == 7):
                 startCode -= 8
@@ -288,6 +317,7 @@ def movTable() -> str:
             res += "{" + "MOV_" + outReg.upper() + inReg.upper() + "},"
         res += "},\n"
     return res + "};\n\n"
+
 
 def pushPopTable() -> str:
     res = "constexpr static char PUSH_TABLE[REGSNUM] = {\n"
@@ -316,12 +346,14 @@ if "__main__" == __name__:
     template = template.replace("{{DEFINES}}",
                                 registerDefines() +
                                 movDefines +
+                                movImmDefines() +
                                 registerPopDefines() +
                                 registerPushDefines() +
                                 addCommandDefines() +
                                 subCommandDefines() +
                                 imulCommandDefines() +
-                                idivDefines())
+                                idivDefines() +
+                                xorDefines())
     template = template.replace("{{REGNUM}}", str(len(registers)))
     template = template.replace("{{MAXLEN}}", str(maxOpcode))
 

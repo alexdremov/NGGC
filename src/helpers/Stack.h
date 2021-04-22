@@ -4,10 +4,57 @@
 
 #ifndef DIFFERENTIATOR_STACK_H
 #define DIFFERENTIATOR_STACK_H
+
 #include <cstdlib>
 
 template<typename Elem>
 class ClassicStack {
+    struct StackIterator {
+        ClassicStack *stack;
+        int pos;
+        bool reversed;
+
+        bool operator==(const StackIterator& other) const {
+            return stack == other.stack && pos == other.pos;
+        }
+
+        Elem *operator->() {
+            return stack->data + pos;
+        }
+
+        Elem &operator*() {
+            return stack->data[pos];
+        }
+
+        void operator++() {
+            if (reversed)
+                pos--;
+            else
+                pos++;
+        }
+
+        void operator++(int) {
+            if (reversed)
+                pos--;
+            else
+                pos++;
+        }
+
+        void operator--() {
+            if (reversed)
+                pos++;
+            else
+                pos--;
+        }
+
+        void operator--(int) {
+            if (reversed)
+                pos++;
+            else
+                pos--;
+        }
+    };
+
     size_t capacity;
     size_t size;
     Elem *data;
@@ -35,10 +82,9 @@ public:
     }
 
     void dest() {
-        for (size_t i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++)
             data[i].dest();
-        }
-        if(data != nullptr) {
+        if (data != nullptr) {
             free(data);
             data = reinterpret_cast<Elem *>(0xBADF);
         }
@@ -64,13 +110,13 @@ public:
         size = 0;
     }
 
-    Elem* top() {
+    Elem *top() {
         if (size == 0)
             return nullptr;
         return &(this->data[size - 1]);
     }
 
-    Elem& get(size_t ind){
+    Elem &get(size_t ind) {
         return data[ind];
     }
 
@@ -82,8 +128,24 @@ public:
         return size;
     }
 
-    [[nodiscard]] bool isEmpty() const{
+    [[nodiscard]] bool isEmpty() const {
         return size == 0;
+    }
+
+    StackIterator begin(){
+        return {this, 0, false};
+    }
+
+    StackIterator end(){
+        return {this, static_cast<int>(size), false};
+    }
+
+    StackIterator rbegin(){
+        return {this, static_cast<int>(size - 1), true};
+    }
+
+    StackIterator rend(){
+        return {this, -1, true};
     }
 };
 

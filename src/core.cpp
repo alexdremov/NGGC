@@ -1,12 +1,9 @@
 //
 // Created by Александр Дремов on 09.04.2021.
 //
-#include <MachOBuilder.h>
 #include <cstdio>
-#include "LexicalAnalysis/LexParser.h"
-#include "Compiler/NGGCompiler.h"
-#include "Helpers/ParamsParser.h"
-#include "core/bgen/FastStackController.h"
+#include "compiler/NGGCompiler.h"
+#include "helpers/ParamsParser.h"
 
 int main(const int argc, const char *argv[]) {
     CLParams params = {};
@@ -45,6 +42,12 @@ int main(const int argc, const char *argv[]) {
 
     compiler.compile();
 
+    if (params.listing) {
+        FILE* listing = fopen(params.listingFileName,"wb");
+        fputs(compiler.getListing().getStorage(), listing);
+        fclose(listing);
+    }
+
     if (!compiler.isCompileSuccessful()) {
         compiler.dumpCompileErrorStack(params.inputFileRealName);
         printf("error: ngg: Unsuccessful parse\n");
@@ -52,6 +55,19 @@ int main(const int argc, const char *argv[]) {
         params.dest();
         return EXIT_FAILURE;
     }
+
+    compiler.genObject(params.objOnly? params.outputFileName: params.outputObjName);
+    if (!params.objOnly){
+        StrContainer command = {};
+        command.init("clang ");
+        command.sEndPrintf("%s  /usr/local/lib/nggstdlib.o  -o %s ", params.outputObjName, params.outputFileName);
+        command.sEndPrintf(" && chmod a+x %s", params.outputFileName);
+        if (!params.keepObj) {
+            command.sEndPrintf(" && rm %s", params.outputObjName);
+        }
+        system(command.begin());
+    }
+
     compiler.dest();
     params.dest();
     return 0;

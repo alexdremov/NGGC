@@ -5,7 +5,7 @@
 #ifndef NGG_COMPILEERROR_H
 #define NGG_COMPILEERROR_H
 
-#include "LexicalAnalysis/Lexeme.h"
+#include "lexicalAnalysis/Lexeme.h"
 
 namespace NGGC {
 

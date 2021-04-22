@@ -17,6 +17,9 @@
 #define PUSH_IMM8 0x6A
 #define PUSH_IMM16 0x68
 
+#define CALL_REL 0xE8
+#define RET 0xC3
+
 struct movCommand {
     unsigned char bytecode[3];
 };

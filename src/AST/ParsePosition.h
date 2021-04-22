@@ -6,7 +6,7 @@
 #define NGG_PARSEPOSITION_H
 
 #include <cstdlib>
-#include "LexicalAnalysis/Lexeme.h"
+#include "lexicalAnalysis/Lexeme.h"
 
 namespace NGGC {
     class ParsePosition {

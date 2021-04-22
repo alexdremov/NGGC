@@ -12,10 +12,7 @@
 
 class FastStackController {
     static constexpr unsigned regs[] = {
-            REG_RSI,
-            REG_RDI,
-            REG_R8,
-            REG_R9,
+            REG_RCX,
             REG_R10,
             REG_R11,
             REG_R12,
@@ -69,6 +66,10 @@ public:
     void init() {
         top = 0;
         regsUsed = 0;
+    }
+
+    void clear() {
+        init();
     }
 
     void dest() {

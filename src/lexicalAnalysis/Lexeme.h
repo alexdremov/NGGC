@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include "LexemeType.h"
-#include "Helpers/StrContainer.h"
+#include "helpers/StrContainer.h"
 
 namespace NGGC {
     class Lexeme {

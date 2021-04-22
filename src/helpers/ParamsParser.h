@@ -11,8 +11,12 @@ struct CLParams {
     const char* inputFileName;
     char* inputFileRealName;
     const char* outputFileName;
+    const char* listingFileName;
+    char* outputObjName;
 
-    bool  verbose;
+    bool  keepObj;
+    bool  objOnly;
+    bool  listing;
     bool  graph;
     bool  lexemes;
     bool  dumpGraph;
@@ -20,13 +24,16 @@ struct CLParams {
 
     static void printHelpData(){
         printf("NGGC help\n"
-               "--input     <input file> input file to be compiled .ngg format (source)\n"
-               "--output    <output file> output file. output.o by default (mach-o object)\n"
-               "-h, --help  show this help message\n"
-               "--verbose   output debug information to the console\n"
-               "--lex       <.lex file> file to dump lexemes\n"
-               "-g          generate AST graph\n"
-               "-d          dump AST graph\n"
+               "--input        <input file> input file to be compiled .ngg format (source)\n"
+               "-o, --output   <output file> output file. a.out by default (mach-o executable)\n"
+               "-h, --help     show this help message\n"
+               "-c             object file only\n"
+               "-C             keep object file\n"
+               "--verbose      output debug information to the console\n"
+               "--lex          <.lex file> file to dump lexemes\n"
+               "--lst          <.lst file> file to dump detailed listing\n"
+               "-g             generate AST graph\n"
+               "-d             dump AST graph\n"
                "\n");
     }
 
@@ -41,34 +48,44 @@ struct CLParams {
         for(int i = 1; i < argc; i++) {
             if (strcmp(argv[i], "--input") == 0) {
                 if (i + 1 > argc) {
-                    printf("error: assembly: No input file specified after --input\n");
+                    printf("error: nggc: No input file specified after --input\n");
                     return false;
                 }
                 this->inputFileName = *(argv + i + 1);
                 realpath(this->inputFileName, this->inputFileRealName);
                 i++;
-            }else if (strcmp(argv[i], "--output") == 0) {
+            }else if (strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "-o") == 0) {
                 if (i + 1 > argc) {
-                    printf("error: assembly: No output file specified after --output\n");
+                    printf("error: nggc: No output file specified after --output\n");
                     return false;
                 }
                 this->outputFileName = *(argv + i + 1);
                 i++;
-            }else if (strcmp(argv[i], "--verbose") == 0) {
-                this->verbose = true;
             }else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
                 printHelpData();
             }else if (strcmp(argv[i], "-d") == 0) {
                 this->dumpGraph = true;
+            }else if (strcmp(argv[i], "-c") == 0) {
+                this->objOnly = true;
+            }else if (strcmp(argv[i], "-C") == 0) {
+                this->keepObj = true;
             }else if (strcmp(argv[i], "-g") == 0) {
                 this->graph = true;
             }else if (strcmp(argv[i], "--lex") == 0) {
                 if (i + 1 > argc){
-                    printf("error: assembly: No lex file specified after --lex\n");
+                    printf("error: nggc: No lex file specified after --lex\n");
                     return false;
                 }
                 lexemes = true;
                 this->lexFileName = *(argv + i + 1);
+                i++;
+            }else if (strcmp(argv[i], "--lst") == 0) {
+                if (i + 1 > argc){
+                    printf("error: nggc: No lst file specified after --lst\n");
+                    return false;
+                }
+                listing = true;
+                this->listingFileName = *(argv + i + 1);
                 i++;
             }else {
                 if (this->inputFileName == nullptr){
@@ -79,12 +96,20 @@ struct CLParams {
         }
 
         if (this->inputFileName == nullptr) {
-            printf("error: assembly: No input file specified\n");
+            printf("error: nggc: No input file specified\n");
             return false;
         }
 
-        if (this->outputFileName == nullptr)
-            this->outputFileName = "output.o";
+        if (this->outputFileName == nullptr) {
+            this->outputFileName = "a.out";
+            if (this->objOnly)
+                this->outputFileName = "object.o";
+        }
+
+        int outLen = strlen(outputFileName);
+        outputObjName = (char*)calloc(outLen + 10, 1);
+        strcpy(outputObjName, outputFileName);
+        strcpy(outputObjName + outLen, ".o");
 
         return true;
     }
@@ -93,8 +118,6 @@ struct CLParams {
         inputFileName = nullptr;
         inputFileRealName = nullptr;
         outputFileName = nullptr;
-
-        verbose = false;
         graph = false;
         lexemes = false;
         lexFileName = nullptr;
@@ -102,6 +125,7 @@ struct CLParams {
     }
 
     void dest() {
+        free(outputObjName);
         free(inputFileRealName);
     }
 };

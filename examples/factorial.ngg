@@ -1,10 +1,5 @@
 def giveYouUp() {
-    fact(input);
-}
-
-def fact(x) {
-    if (x <= 1){
-        ret 1;
-    }
-    ret fact(x - 1) * x;
+    let i = 123;
+    print(6);
+    print(i);
 }

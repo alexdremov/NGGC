@@ -21,6 +21,13 @@ class ByteContainer {
         }
     }
 
+    void reallocateDouble(size_t additional = 1) {
+        if (len + additional >= maxLen){
+            storage = static_cast<char*>(realloc(storage, (maxLen + additional + 1) * 2));
+            maxLen = (maxLen + additional + 1) * 2;
+        }
+    }
+
 public:
     void init(){
         storage = nullptr;
@@ -66,20 +73,20 @@ public:
     }
 
     void append(char symbol) {
-        reallocate(5);
+        reallocateDouble();
         storage[len++] = symbol;
     }
 
     void append(const char* str, size_t size) {
-        reallocate(size + 1);
+        reallocateDouble(size + 1);
         memcpy(storage + len, str, size);
         len += size;
     }
 
     void appendReversed(const char* str, size_t size) {
-        for(int i = size - 1; i >=0; i--) {
+        reallocateDouble(size + 1);
+        for(int i = size - 1; i >=0; i--)
             append(str[i]);
-        }
     }
 
     [[nodiscard]] char* begin() const {
@@ -95,12 +102,8 @@ public:
         size_t fsize = ftell(file);
         fseek(file, 0, SEEK_SET);
 
-        reallocate(fsize + 10);
+        reallocate(fsize + 1);
         fread(storage, 1, fsize, file);
-    }
-
-    bool isValid(){
-        return storage != (char*) 0xBADF;
     }
 };
 
