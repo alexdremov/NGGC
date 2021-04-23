@@ -123,12 +123,12 @@ namespace NGGC {
             addInstructions(leave, "Leave");
         }
 
-        void processFurther(ASTNode *head, bool valueNeeded = false, bool noScope = false) {
+        void processFurther(ASTNode *head, bool noScope = false) {
             if (head == nullptr)
                 return;
             switch (head->getKind()) {
                 case Kind_Linker:
-                    c_Linker(head, valueNeeded, noScope);
+                    c_Linker(head, noScope);
                     break;
                 case Kind_FuncDecl:
                     c_FuncDecl(head);
@@ -179,7 +179,7 @@ namespace NGGC {
                     c_WhileStmt(head);
                     break;
                 case Kind_BasicFunction:
-                    c_BasicFunction(head, valueNeeded);
+                    c_BasicFunction(head);
                     break;
                 case Kind_Setpix:
                     c_Setpix(head);
@@ -194,16 +194,16 @@ namespace NGGC {
             }
         }
 
-        void c_Linker(ASTNode *head, bool valueNeeded, bool noScope = false) {
+        void c_Linker(ASTNode *head, bool noScope = false) {
             bool genNewScope = (head->getLinkKind() == Kind_Link_NewScope) && !noScope;
 
             if (genNewScope) {
                 table.addNewLevel();
                 addDescription("New scope created");
             }
-            processFurther(head->getLeft(), valueNeeded);
+            processFurther(head->getLeft());
             if (head->getRight())
-                processFurther(head->getRight(), valueNeeded);
+                processFurther(head->getRight());
             if (genNewScope) {
                 table.deleteLocal();
                 addDescription("Exited scope");
@@ -256,13 +256,13 @@ namespace NGGC {
                     return;
                 } else {
                     elem->definitionOffset = compiled->getLen();
-                    elem->localVarsNum = countLocalVars(head);
+                    elem->localVarsNum = countLocalVars(head) + argCount;
                 }
             } else {
                 elem = &functions[label.begin()];
                 elem->init();
                 elem->definitionOffset = compiled->getLen();
-                elem->localVarsNum = countLocalVars(head);
+                elem->localVarsNum = countLocalVars(head) + argCount;
             }
             currentDecl = elem;
             addDescription("Function declaration start:", label.getStorage());
@@ -279,7 +279,7 @@ namespace NGGC {
             static const unsigned moverbp[] = {PUSH_RBP, MOV_RBPRSP, COMMANDEND};
             addInstructions(moverbp, "Function enter");
             reserveStack(elem->localVarsNum + elem->localVarsNum % 2);
-            processFurther(head->getRight(), false, true);
+            processFurther(head->getRight(), true);
             freeStack(elem->localVarsNum + elem->localVarsNum % 2);
             leave();
             table.deleteLocal();
@@ -673,7 +673,7 @@ namespace NGGC {
             compiled->append((char*)(&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
         }
 
-        void c_BasicFunction(ASTNode *head, bool valueNeeded = false) {
+        void c_BasicFunction(ASTNode *head) {
             CompileError err {};
             err.init("Unsupported at this time: ", head->getLexeme());
             cErrors->push(err);

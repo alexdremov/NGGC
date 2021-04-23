@@ -6,13 +6,21 @@ def giveYouUp() {
 	print x;
 	print userData;
 	print something;
+	print fact(input);
 }
+
+
 
 def coub(z) {
 	let x = z;
 	let t = z;
 	let r = z;
     ret x * t * r;
+}
+
+def fact(x){
+	if (x <= 1){ret 1;}
+	ret fact(x - 1) * x;
 }
 
 def poly(a) {
