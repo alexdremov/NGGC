@@ -1,18 +1,18 @@
 def giveYouUp() {
 	let x = 0;
 	let userData = 100000;
-	print(fact(20));
-	while(x < userData) {
-	    fact(20);
-	    x += 1;
-	}
+	print coub(1);
+	let something = 10 * coub(1) * 100  * coub(1) * coub(2);
+	print x;
+	print userData;
+	print something;
 }
 
-def fact(z) {
-    if (z <= 1){
-        ret 1;
-    }
-    ret fact(z - 1) * z;
+def coub(z) {
+	let x = z;
+	let t = z;
+	let r = z;
+    ret x * t * r;
 }
 
 def poly(a) {

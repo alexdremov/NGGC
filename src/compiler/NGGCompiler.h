@@ -29,6 +29,7 @@ namespace NGGC {
     struct functionDefinition {
         ClassicStack<offset> usages;
         size_t definitionOffset;
+        unsigned localVarsNum;
 
         void init() {
             const int startSize = 8;
@@ -45,6 +46,7 @@ namespace NGGC {
         HashMasm<ClassicStack<size_t>> globalVars;
         HashMasm<functionDefinition> functions;
         ClassicStack<CompileError> *cErrors;
+        functionDefinition* currentDecl;
         FastStackController stack;
         FastList<Lexeme> *parsed;
         ByteContainer *compiled;
@@ -153,7 +155,7 @@ namespace NGGC {
                     c_Statement(head);
                     break;
                 case Kind_FuncCall:
-                    c_FuncCall(head, valueNeeded);
+                    c_FuncCall(head);
                     break;
                 case Kind_CmpOperator:
                     c_CmpOperator(head);
@@ -208,6 +210,29 @@ namespace NGGC {
             }
         }
 
+        unsigned int countLocalVars(ASTNode *pNode) {
+            if (pNode == nullptr)
+                return 0;
+            return countLocalVars(pNode->getLeft()) + countLocalVars(pNode->getRight()) + (pNode->getKind() == Kind_VarDef ? 1 : 0);
+        }
+
+        size_t reserveStack(unsigned int num) {
+            if (num == 0)
+                return 0;
+            static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
+            addInstructions(moversp, "sub rsp, imm32 - reserving stack");
+            printImm32(num * 8);
+            return num;
+        }
+
+        void freeStack(unsigned int num) {
+            if (num == 0)
+                return;
+            static const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
+            addInstructions(moversp, "add rsp, imm32 - free stack");
+            printImm32(num * 8);
+        }
+
         void c_FuncDecl(ASTNode *head) {
             StrContainer label = {};
             label.init(head->getLexeme().getString()->begin());
@@ -219,21 +244,27 @@ namespace NGGC {
             }
             label.sEndPrintf("%zu", argCount);
 
+            functionDefinition* elem = nullptr;
             if (functions.find(label.getStorage()) != functions.end()) {
-                if (functions[label.begin()].definitionOffset != (size_t) -1) {
+                elem = &functions[label.begin()];
+                if (elem->definitionOffset != (size_t) -1) {
                     CompileError err {};
-                    err.init("Duplicate function declaration", head->getLexeme());
+                    err.init("Duplicate function declaration ", head->getLexeme());
                     err.msg->sEndPrintf("%s", label.getStorage());
                     cErrors->push(err);
                     label.dest();
                     return;
-                } else
-                    functions[label.begin()].definitionOffset = compiled->getLen();
+                } else {
+                    elem->definitionOffset = compiled->getLen();
+                    elem->localVarsNum = countLocalVars(head);
+                }
             } else {
-                functions[label.begin()].init();
-                functions[label.begin()].definitionOffset = compiled->getLen();
+                elem = &functions[label.begin()];
+                elem->init();
+                elem->definitionOffset = compiled->getLen();
+                elem->localVarsNum = countLocalVars(head);
             }
-
+            currentDecl = elem;
             addDescription("Function declaration start:", label.getStorage());
             table.addNewLevel();
             stack.clear();
@@ -247,10 +278,48 @@ namespace NGGC {
             }
             static const unsigned moverbp[] = {PUSH_RBP, MOV_RBPRSP, COMMANDEND};
             addInstructions(moverbp, "Function enter");
+            reserveStack(elem->localVarsNum + elem->localVarsNum % 2);
             processFurther(head->getRight(), false, true);
+            freeStack(elem->localVarsNum + elem->localVarsNum % 2);
             leave();
             table.deleteLocal();
             addDescription("Function declaration end");
+            label.dest();
+            currentDecl = nullptr;
+        }
+
+        void c_FuncCall(ASTNode *head) {
+            ASTNode *lastNode = head->getLeft();
+            reserveStack(stack.getTop() % 2);
+
+            stack.saveStack(*compiled);
+
+            int argOffset = 3; // return address and rbp
+            while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
+                processFurther(lastNode->getLeft(), true);
+                static const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
+                addInstructions(movearg, "preparing argument");
+                printImm32(argOffset * -8);
+                lastNode = lastNode->getRight();
+                argOffset++;
+            }
+
+            StrContainer label {};
+            label.init(head->getLexeme().getString()->begin());
+            label.sEndPrintf("%d", argOffset - 3);
+
+            auto foundFunc = functions.find(label.begin());
+            if (foundFunc == functions.end()) {
+                functions[label.begin()].init();
+                functions[label.begin()].definitionOffset = -1;
+                foundFunc = functions.find(label.begin());
+            }
+            foundFunc->value.usages.push((size_t) compiled->getLen() + 1);
+            static const unsigned call[] = {CALL_REL, COMMANDEND};
+            addInstructions(call, "call");
+            printImm32(0);
+            stack.restoreStack(*compiled);
+            freeStack(stack.getTop() % 2);
             label.dest();
         }
 
@@ -451,54 +520,9 @@ namespace NGGC {
             processFurther(head->getRight());
         }
 
-        void c_FuncCall(ASTNode *head, bool valueNeeded = false) {
-            ASTNode *lastNode = head->getLeft();
-            size_t rspShift = shiftRspBeforeCall();
-
-            int argOffset = 3; // return address and rbp
-            while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
-                processFurther(lastNode->getLeft(), true);
-                static const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
-                addInstructions(movearg, "preparing argument");
-                printImm32(argOffset * -8);
-                lastNode = lastNode->getRight();
-                argOffset++;
-            }
-
-            StrContainer label {};
-            label.init(head->getLexeme().getString()->begin());
-            label.sEndPrintf("%d", argOffset - 3);
-
-            call(label);
-            shiftRspAfterCall(rspShift);
-            label.dest();
-        }
-
-        void shiftRspAfterCall(size_t rspShift) {
-            if (rspShift != 0) {
-                static const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
-                addInstructions(moversp, "add rsp, imm32 - moving rsp after function call");
-                printImm32((rspShift) * 8);
-            }
-        }
-
-        size_t shiftRspBeforeCall() {
-            size_t rspShift = table.getLocalOffset() + stack.getTop();
-            rspShift += rspShift % 16;
-            if (rspShift != 0) {
-                static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
-                addInstructions(moversp, "sub rsp, imm32 - moving rsp before function call");
-                printImm32((rspShift) * 8);
-            }
-            return rspShift;
-        }
-
-        void call(const StrContainer &label, bool shift=false) {
-            size_t rspShift = 0;
-            if (shift)
-                rspShift = shiftRspBeforeCall();
+        void call(const StrContainer &label) {
+            reserveStack(stack.getTop() % 2);
             stack.saveStack(*compiled);
-
             auto foundFunc = functions.find(label.begin());
             if (foundFunc == functions.end()) {
                 functions[label.begin()].init();
@@ -510,8 +534,7 @@ namespace NGGC {
             addInstructions(call, "call");
             printImm32(0);
             stack.restoreStack(*compiled);
-            if (shift)
-                shiftRspAfterCall(rspShift);
+            freeStack(stack.getTop() % 2);
         }
 
         void c_CmpOperator(ASTNode *head) {
@@ -570,30 +593,31 @@ namespace NGGC {
         void c_ReturnStmt(ASTNode *head) {
             if (head->getLeft())
                 processFurther(head->getLeft(), true);
+            freeStack(currentDecl->localVarsNum + currentDecl->localVarsNum % 2);
             leave();
         }
 
         void c_Print(ASTNode *head) {
-            processFurther(head->getLeft(), true);
+            processFurther(head->getLeft());
             static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
             StrContainer label = {};
             label.init("_print");
-            call(label, true);
+            call(label);
             label.dest();
         }
 
         void c_Input(ASTNode *head) {
             StrContainer label = {};
             label.init("_in");
-            call(label, true);
+            call(label);
             label.dest();
         }
 
         void c_IfStmt(ASTNode *head) {
             ASTNode *ifBranch = head->getRight()->getLeft();
             ASTNode *elseBranch = head->getRight()->getRight();
-            processFurther(head->getLeft(), true);
+            processFurther(head->getLeft());
 
             const static unsigned ifcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
             addInstructions(ifcmd, "If compare head");
