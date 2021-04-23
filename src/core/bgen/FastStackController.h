@@ -8,8 +8,7 @@
 #include <cstdlib>
 #include "ByteContainer.h"
 #include "ElCommand.h"
-#include "CallConvention.h"
-
+#include "RegisterMaster.h"
 
 class FastStackController {
     static constexpr unsigned regs[] = {

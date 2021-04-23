@@ -167,6 +167,7 @@ def xorDefines() -> str:
         strDefine += "#define XOR_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
     return strDefine
 
+
 def cmpDefines() -> str:
     table = generalCommandTwoRegs(0x39)
     strDefine = "\n"
@@ -174,6 +175,7 @@ def cmpDefines() -> str:
         label = label.upper()
         strDefine += "#define CMP_" + label + " " + ", ".join(map(hex, opcode)) + "\n"
     return strDefine
+
 
 def testDefines() -> str:
     table = generalCommandTwoRegs(0x85)
@@ -351,6 +353,30 @@ def pushPopTable() -> str:
     return res
 
 
+def movRspMemTable() -> str:
+    res = "constexpr static unsigned char MEMRSPTOREG[REGSNUM][4] = {\n"
+    for outReg, _ in registers:
+        res += "{MOV_" + outReg.upper() + "RSP_MEM_DISPL32},\n"
+    res += "};\n\n"
+    res += "constexpr static unsigned char REGTOMEMRSP[REGSNUM][4] = {\n"
+    for outReg, _ in registers:
+        res += "{MOV_MEM_RSP_DISPL32" + outReg.upper() + "},\n"
+    res += "};\n\n"
+    return res
+
+
+def movRbpMemTable() -> str:
+    res = "constexpr static unsigned char MEMRBPTOREG[REGSNUM][3] = {\n"
+    for outReg, _ in registers:
+        res += "{MOV_" + outReg.upper() + "RBP_MEM_DISPL32},\n"
+    res += "};\n\n"
+    res += "constexpr static unsigned char REGTOMEMRBP[REGSNUM][3] = {\n"
+    for outReg, _ in registers:
+        res += "{MOV_MEM_RBP_DISPL32" + outReg.upper() + "},\n"
+    res += "};\n\n"
+    return res
+
+
 if "__main__" == __name__:
     maxOpcode = 5
 
@@ -373,13 +399,16 @@ if "__main__" == __name__:
                                 subCommandDefines() +
                                 imulCommandDefines() +
                                 idivDefines() +
-                                xorDefines()+
-                                cmpDefines()+
+                                xorDefines() +
+                                cmpDefines() +
                                 testDefines())
     template = template.replace("{{REGNUM}}", str(len(registers)))
-    template = template.replace("{{MAXLEN}}", str(maxOpcode))
 
-    template = template.replace("{{TABLES}}", movTable() + pushPopTable())
+    template = template.replace("{{TABLES}}",
+                                movTable() +
+                                pushPopTable() +
+                                movRspMemTable()+
+                                movRbpMemTable())
 
     with open("ElCommand.h", "w") as outputFile:
         outputFile.write(template)
