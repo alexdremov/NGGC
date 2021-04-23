@@ -36,9 +36,6 @@
 #define JGE_REL32 0x0F, 0x8D
 #define JMP_REL32 0xE9
 
-
-#define XCHG_RAXRBX 0x48, 0x93
-
 struct movCommand {
     unsigned char bytecode[3];
 };

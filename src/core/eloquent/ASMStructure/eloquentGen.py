@@ -51,19 +51,45 @@ def registerDefines() -> str:
     return ret
 
 
-def generalCommandAddReg(command, prefix) -> str:
+def generalCommandAddReg(command, prefix, prefixType=False) -> str:
     ret = "\n"
     for num, elem in enumerate(registers):
-        ret += "#define " + prefix.upper() + elem[0].upper() + " " + hex(command + num) + "\n"
+        if not prefixType:
+            ret += "#define " + prefix.upper() + elem[0].upper() + " " + hex(command + num) + "\n"
+        else:
+            ret += "#define " + prefix.upper() + elem[0].upper() + " " + hex(prefixRegs[elem[1][0]]) + ", " + hex(
+                command + num) + "\n"
     return ret
 
 
 def registerPopDefines() -> str:
-    return generalCommandAddReg(0x58, "pop_")
+    ret = "\n"
+    start = 0x58
+    code = start
+    for num, elem in enumerate(registers):
+        if (num == 8):
+            code = start
+        if (num <= 7):
+            ret += "#define POP_" + elem[0].upper() + " " + hex(code) + ", 0x90 \n"
+        else:
+            ret += "#define POP_" + elem[0].upper() + " 0x41, " + hex(code) + "\n"
+        code+=1
+    return ret
 
 
 def registerPushDefines() -> str:
-    return generalCommandAddReg(0x50, "push_")
+    ret = "\n"
+    start = 0x50
+    code = start
+    for num, elem in enumerate(registers):
+        if (num == 8):
+            code = start
+        if (num <= 7):
+            ret += "#define PUSH_" + elem[0].upper() + " " + hex(code) + ", 0x90 \n"
+        else:
+            ret += "#define PUSH_" + elem[0].upper() + " 0x41, " + hex(code) + "\n"
+        code+=1
+    return ret
 
 
 def idivDefines() -> str:
@@ -92,14 +118,17 @@ def generalCommandTwoRegsRev(command, start=0xC0) -> dict:
     if not isinstance(command, list):
         command = [command]
     startCode = start
+    modifier = 0
     for i in range(len(registers)):
         if (i == 8):
             startCode = start
+        modifier = 0
         for j in range(len(registers)):
-            table[registers[i][0] + registers[j][0]] = [regToRegCodes[registers[i][1][0] + registers[j][1][1]],
+            table[registers[i][0] + registers[j][0]] = [prefixRegs[registers[i][1][0]] + modifier,
                                                         *command, startCode]
             startCode += 1
             if (j == 7):
+                modifier = 1
                 startCode -= 8
     return table
 
@@ -342,13 +371,13 @@ def movTable() -> str:
 
 
 def pushPopTable() -> str:
-    res = "constexpr static char PUSH_TABLE[REGSNUM] = {\n"
+    res = "constexpr static unsigned char PUSH_TABLE[REGSNUM][2] = {\n"
     for outReg, _ in registers:
-        res += "PUSH_" + outReg.upper() + ",\n"
+        res += "{PUSH_" + outReg.upper() + "},\n"
     res += "};\n\n"
-    res += "constexpr static char POP_TABLE[REGSNUM] = {\n"
+    res += "constexpr static unsigned char POP_TABLE[REGSNUM][2] = {\n"
     for outReg, _ in registers:
-        res += "POP_" + outReg.upper() + ",\n"
+        res += "{POP_" + outReg.upper() + "},\n"
     res += "};\n\n"
     return res
 
@@ -377,6 +406,53 @@ def movRbpMemTable() -> str:
     return res
 
 
+def twoRegTable(name, prefix, size=3) -> str:
+    res = "constexpr static unsigned char " + name.upper() + "[REGSNUM][REGSNUM][" + str(size) + "] = {\n"
+    for outReg, _ in registers:
+        res += "{ "
+        for inReg, _ in registers:
+            res += "{" + prefix + outReg.upper() + inReg.upper() + "},"
+        res += "},\n"
+    res += "};\n\n"
+    return res
+
+
+def xchgRaxTable() -> str:
+    res = "constexpr static unsigned char XCHG_RAXTABLE[REGSNUM][2] = {\n"
+    for outReg, _ in registers:
+        res += "{XCHG_RAX" + outReg.upper() + "},\n"
+    res += "};\n\n"
+    return res
+
+
+def addTable() -> str:
+    return twoRegTable("ADDTABLE", "ADD_")
+
+
+def subTable() -> str:
+    return twoRegTable("SUBTABLE", "SUB_")
+
+
+def xorTable() -> str:
+    return twoRegTable("XORTABLE", "XOR_")
+
+
+def testTable() -> str:
+    return twoRegTable("TESTTABLE", "TEST_")
+
+
+def cmpTable() -> str:
+    return twoRegTable("CMPTABLE", "CMP_", 3)
+
+
+def imulTable() -> str:
+    return twoRegTable("IMULTABLE", "IMUL_", 4)
+
+
+def xchgRax() -> str:
+    return generalCommandAddReg(0x90, "XCHG_RAX", True)
+
+
 if "__main__" == __name__:
     maxOpcode = 5
 
@@ -401,14 +477,22 @@ if "__main__" == __name__:
                                 idivDefines() +
                                 xorDefines() +
                                 cmpDefines() +
-                                testDefines())
+                                testDefines() +
+                                xchgRax())
     template = template.replace("{{REGNUM}}", str(len(registers)))
 
     template = template.replace("{{TABLES}}",
                                 movTable() +
                                 pushPopTable() +
-                                movRspMemTable()+
-                                movRbpMemTable())
+                                movRspMemTable() +
+                                movRbpMemTable() +
+                                subTable() +
+                                addTable() +
+                                xorTable() +
+                                testTable() +
+                                cmpTable() +
+                                imulTable() +
+                                xchgRaxTable())
 
     with open("ElCommand.h", "w") as outputFile:
         outputFile.write(template)

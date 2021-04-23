@@ -29,9 +29,11 @@ namespace NGGC {
             active = false;
             stackIndex = 0;
             id = 0;
+            assert(false);
         }
 
         void initLocalVar(size_t varOffset, const char *varName) {
+            assert(varOffset != 0);
             name = varName;
             offset = varOffset;
             type = LOC_REG;

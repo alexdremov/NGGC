@@ -20,29 +20,34 @@ namespace NGGC {
         size_t stackLastIndex;
         size_t tmpIdNow;
 
-        void deactivateReg(unsigned regNum) {
+        void deactivateReg(unsigned regNum, bool restore = true) {
             size_t activeIter = findActiveUsageOf(regNum);
             if (activeIter == usages[regNum].end())
                 return;
             RegVarUsage *activeNow = nullptr;
             usages[regNum].get(activeIter, &activeNow);
 
-            switch (activeNow->type) {
-                case LOC_REG: {
-                    saveRegRbpOffset(activeNow->offset, regNum);
-                    usages[regNum].remove(activeIter);
-                    break;
+            if (restore) {
+                switch (activeNow->type) {
+                    case LOC_REG: {
+                        saveRegRbpOffset(activeNow->offset, regNum);
+                        usages[regNum].remove(activeIter);
+                        break;
+                    }
+                    case GLO_REG: {
+                        saveRegDataSeg(activeNow->name, regNum);
+                        usages[regNum].remove(activeIter);
+                        break;
+                    }
+                    case TMP_REG: {
+                        saveTmp(activeNow, regNum);
+                        activeNow->active = false;
+                        break;
+                    }
                 }
-                case GLO_REG: {
-                    saveRegDataSeg(activeNow->name, regNum);
-                    usages[regNum].remove(activeIter);
-                    break;
-                }
-                case TMP_REG: {
-                    saveTmp(activeNow, regNum);
+            } else {
+                if (activeNow->type == TMP_REG)
                     activeNow->active = false;
-                    break;
-                }
             }
         }
 
@@ -50,16 +55,23 @@ namespace NGGC {
             assert(false);
         }
 
-        void saveRegRbpOffset(size_t offset, unsigned int reg) {
-            int32_t displacement = offset;
+        void saveRegRbpOffset(int32_t offset, unsigned int reg) {
+            int32_t displacement = offset * -8;
             const unsigned char *command = REGTOMEMRBP[reg];
             compiled->append((char *) command, sizeof(REGTOMEMRBP[reg]));
             compiled->append((char *) (&displacement), sizeof(int32_t));
         }
 
+        void restRegRbpOffset(int32_t offset, unsigned int reg) {
+            int32_t displacement = offset * -8;
+            const unsigned char *command = MEMRBPTOREG[reg];
+            compiled->append((char *) command, sizeof(MEMRBPTOREG[reg]));
+            compiled->append((char *) (&displacement), sizeof(int32_t));
+        }
+
         void saveRegStack(size_t index, unsigned int reg) {
             int32_t stackDisplacement = stackLastIndex - index;
-            stackDisplacement *= -8;
+            stackDisplacement *= 8;
             const unsigned char *command = REGTOMEMRSP[reg];
             compiled->append((char *) command, sizeof(REGTOMEMRSP[reg]));
             compiled->append((char *) (&stackDisplacement), sizeof(int32_t));
@@ -67,14 +79,14 @@ namespace NGGC {
 
         void restRegStack(size_t index, unsigned int reg) {
             int32_t stackDisplacement = stackLastIndex - index;
-            stackDisplacement *= -8;
+            stackDisplacement *= 8;
             const unsigned char *command = MEMRSPTOREG[reg];
             compiled->append((char *) command, sizeof(MEMRSPTOREG[reg]));
             compiled->append((char *) (&stackDisplacement), sizeof(int32_t));
         }
 
         void pushRegister(unsigned int num) {
-            compiled->append(PUSH_TABLE[num]);
+            compiled->append((char *) PUSH_TABLE[num], sizeof(PUSH_TABLE[num]));
         }
 
         void saveTmp(RegVarUsage *pUsage, unsigned int num) {
@@ -88,21 +100,22 @@ namespace NGGC {
 
         unsigned leastUsedReg() {
             unsigned lowest = RegLists::allRegs[0];
-            for (unsigned i = 1; i < RegLists::allRegsN; i++) {
+            for (unsigned int allReg : RegLists::allRegs) {
                 bool active = false;
-                for (size_t iter = usages[RegLists::allRegs[i]].begin(); iter != usages[RegLists::allRegs[i]].end();
-                     usages[RegLists::allRegs[i]].nextIterator(&iter)){
-                    RegVarUsage* usage = nullptr;
-                    usages[RegLists::allRegs[i]].get(iter, &usage);
+                for (size_t iter = usages[allReg].begin(); iter != usages[allReg].end();
+                     usages[allReg].nextIterator(&iter)) {
+                    RegVarUsage *usage = nullptr;
+                    usages[allReg].get(iter, &usage);
                     if (usage->active) {
                         active = true;
                         break;
                     }
                 }
                 if (!active)
-                    return RegLists::allRegs[i];
-                if (usages[RegLists::allRegs[i]].getSize() < usages[lowest].getSize())
-                    lowest = RegLists::allRegs[i];
+                    return allReg;
+                if (usages[allReg].getSize() < usages[lowest].getSize()) {
+                    lowest = allReg;
+                }
             }
             return lowest;
         }
@@ -117,10 +130,12 @@ namespace NGGC {
             return usages[reg].end();
         }
 
-        void arrangeForVar(RegVarUsage *pUsage) {
+        void arrangeForVar(RegVarUsage *pUsage, bool loadValue = true) {
             unsigned reg = leastUsedReg();
             deactivateReg(reg);
-            pUsage->active;
+            pUsage->active = true;
+            if (loadValue)
+                restRegRbpOffset(pUsage->offset, reg);
             usages[reg].pushBack(*pUsage);
         }
 
@@ -135,19 +150,24 @@ namespace NGGC {
 
         void loadTmp(RegVarUsage *pUsage, unsigned reg) {
             assert(pUsage->type == TMP_REG);
-            restRegStack(pUsage->stackIndex, reg);
+            if (pUsage->stackIndex != (size_t) -1)
+                restRegStack(pUsage->stackIndex, reg);
             pUsage->active = true;
         }
 
-        unsigned activateTmp(size_t id) {
+        unsigned activateTmp(size_t id, bool restore = true) {
             RegVarUsage usageFind = {};
             usageFind.initTmpReg(id);
 
+            RegVarUsage *usage = nullptr;
             size_t index = 0;
             unsigned reg = findUsage(index, usageFind);
-            deactivateReg(reg);
+            usages[reg].get(index, &usage);
+            if (usage->active)
+                return reg;
+            deactivateReg(reg, restore);
 
-            RegVarUsage *usage = nullptr;
+
             usages[reg].get(index, &usage);
             if (usage->active)
                 return reg;
@@ -155,14 +175,24 @@ namespace NGGC {
             return reg;
         }
 
+        void setup() {
+            stackLastIndex = 0;
+            tmpIdNow = 0;
+            for (unsigned i = 0; i < RegLists::regsPreserveN; i++) {
+                size_t index = 0;
+                addTmpToReg(index, RegLists::regsPreserve[i]);
+                assert(index == i);
+            }
+        }
+
     public:
-        unsigned allocateTmp(size_t &id){
+        unsigned allocateTmp(size_t &id) {
             unsigned reg = leastUsedReg();
             addTmpToReg(id, reg);
             return reg;
         }
 
-        unsigned getTmp(size_t id){
+        unsigned getTmp(size_t id) {
             return activateTmp(id);
         }
 
@@ -178,9 +208,10 @@ namespace NGGC {
             compiled->append((char *) (&i), sizeof(i));
         }
 
-        unsigned int findUsage(size_t& index, RegVarUsage usage) {
-            for (unsigned i = 0; i < RegLists::allRegsN; i++){
-                for (index = usages[RegLists::allRegs[i]].begin(); index != usages[RegLists::allRegs[i]].begin(); usages[RegLists::allRegs[i]].nextIterator(&index)){
+        unsigned int findUsage(size_t &index, RegVarUsage usage) {
+            for (unsigned i = 0; i < RegLists::allRegsN; i++) {
+                for (index = usages[RegLists::allRegs[i]].begin();
+                     index != usages[RegLists::allRegs[i]].end(); usages[RegLists::allRegs[i]].nextIterator(&index)) {
                     RegVarUsage *usageTest = nullptr;
                     usages[RegLists::allRegs[i]].get(index, &usageTest);
                     if (*usageTest == usage) {
@@ -192,13 +223,13 @@ namespace NGGC {
             return 0;
         }
 
-        void releaseTmp(size_t id){
+        void releaseTmp(size_t id) {
             size_t index = 0;
             RegVarUsage usageFind = {};
             usageFind.initTmpReg(id);
             unsigned reg = findUsage(index, usageFind);
             assert(index != 0);
-            RegVarUsage* usage = nullptr;
+            RegVarUsage *usage = nullptr;
             usages[reg].get(index, &usage);
             if (usage->stackIndex == stackLastIndex) {
                 stackLastIndex--;
@@ -207,7 +238,7 @@ namespace NGGC {
             usages[reg].remove(index);
         }
 
-        unsigned getVar(size_t offset, VarType type, const char *name){
+        unsigned getVar(size_t offset, VarType type, const char *name, bool loadValue = true) {
             RegVarUsage usageFind = {};
             if (type == Var_Loc)
                 usageFind.initLocalVar(offset, name);
@@ -216,51 +247,65 @@ namespace NGGC {
             size_t index = 0;
             unsigned reg = findUsage(index, usageFind);
             if (index == 0) {
-                arrangeForVar(&usageFind);
+                arrangeForVar(&usageFind, loadValue);
                 reg = findUsage(index, usageFind);
                 assert(index != 0);
             }
             return reg;
         }
 
-        unsigned getVarLocal(size_t offset, VarType type, const char *name){
+        unsigned getVarLocal(size_t offset, VarType type, const char *name) {
             getVar(offset, Var_Loc, name);
         }
 
-        unsigned getVarGlobal(size_t offset, VarType type, const char *name){
+        unsigned getVarGlobal(size_t offset, VarType type, const char *name) {
             getVar(offset, Var_Glob, name);
         }
 
-        void releaseSpecificReg(unsigned reg){
+        void releaseSpecificReg(unsigned reg) {
             deactivateReg(reg);
         }
 
-        void prepareCall(){
-            for(unsigned i = 0; i < RegLists::callNotPreservedN; i++){
-                deactivateReg(RegLists::callNotPreserved[i]);
-            }
-            subRsp((stackLastIndex % 2) * 8); // stack 16 alignment
+        void moveRsp() {
+            if ((stackLastIndex % 2) != 0)
+                subRsp((stackLastIndex % 2) * 8); // stack 16 alignment
         }
 
-        void revertCall(){
-            addRsp((stackLastIndex % 2) * 8); // stack 16 alignment
+        void prepareCall() {
+            for (unsigned int i : RegLists::callNotPreserved)
+                deactivateReg(i);
         }
 
-        void restorePreserved(){
+        void moveRspBack() {
+            if ((stackLastIndex % 2) != 0)
+                addRsp((stackLastIndex % 2) * 8); // stack 16 alignment
+        }
+
+        void restorePreserved() {
             for (size_t i = 0; i < RegLists::regsPreserveN; i++)
-                activateTmp(i);
+                activateTmp(i, false);
         }
 
-        void init(ByteContainer* container){
+        void init(ByteContainer *container) {
             compiled = container;
-            usages->init();
-            stackLastIndex = 0;
-            tmpIdNow = 0;
-            for (unsigned i = 0; i < RegLists::regsPreserveN; i++){
-                size_t index = 0;
-                addTmpToReg(index, RegLists::regsPreserve[i]);
-                assert(index == i);
-            }
+            for (auto &usage : usages)
+                usage.init();
+            setup();
+        }
+
+        void dest() {
+            for (auto &usage : usages)
+                usage.dest();
+        }
+
+        void clear() {
+            for (auto &usage : usages)
+                usage.clear();
+            setup();
+        }
+
+        size_t stackUsed() const {
+            return stackLastIndex;
         }
     };
 }

@@ -4,8 +4,10 @@
 #include <cstdio>
 #include "compiler/NGGCompiler.h"
 #include "helpers/ParamsParser.h"
+#include "RegisterMaster.h"
 
 int main(const int argc, const char *argv[]) {
+
     CLParams params = {};
     params.init();
     bool result = params.parseArgs(argc, argv);

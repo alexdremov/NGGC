@@ -5,6 +5,7 @@
 #include "VarTable.h"
 #include "helpers/ParamsParser.h"
 #include "compiler/CompileError.h"
+#include "RegisterMaster.h"
 #include "ASTLoader/ASTLoader.h"
 #include "lexicalAnalysis/LexParser.h"
 #include "helpers/ByteContainer.h"
@@ -46,11 +47,11 @@ namespace NGGC {
         HashMasm<ClassicStack<size_t>> globalVars;
         HashMasm<functionDefinition> functions;
         ClassicStack<CompileError> *cErrors;
-        functionDefinition* currentDecl;
-        FastStackController stack;
+        functionDefinition *currentDecl;
         FastList<Lexeme> *parsed;
         ByteContainer *compiled;
         size_t lastDescription;
+        RegisterMaster master;
         const char *fileName;
         StrContainer listing;
         VarTable table;
@@ -102,7 +103,7 @@ namespace NGGC {
 
         void storeRaxToOffsetRbp(int32_t offset) {
             offset *= -1;
-            static const unsigned movrbx[] = {
+            const unsigned movrbx[] = {
                     MOV_MEM_RBP_DISPL32RAX,
                     COMMANDEND};
             addInstructions(movrbx, "Storing rax to rbp - offset");
@@ -111,7 +112,7 @@ namespace NGGC {
 
         void storeRaxToOffsetRsp(int32_t offset) {
             offset *= -1;
-            static const unsigned movrbx[] = {
+            const unsigned movrbx[] = {
                     MOV_MEM_RSP_DISPL32RAX,
                     COMMANDEND};
             addInstructions(movrbx, "Storing rax to rsp - offset");
@@ -119,7 +120,7 @@ namespace NGGC {
         }
 
         void leave() {
-            static const unsigned leave[] = {POP_RBP, RET, COMMANDEND};
+            const unsigned leave[] = {POP_RBP, RET, COMMANDEND};
             addInstructions(leave, "Leave");
         }
 
@@ -213,13 +214,14 @@ namespace NGGC {
         unsigned int countLocalVars(ASTNode *pNode) {
             if (pNode == nullptr)
                 return 0;
-            return countLocalVars(pNode->getLeft()) + countLocalVars(pNode->getRight()) + (pNode->getKind() == Kind_VarDef ? 1 : 0);
+            return countLocalVars(pNode->getLeft()) + countLocalVars(pNode->getRight()) +
+                   (pNode->getKind() == Kind_VarDef ? 1 : 0);
         }
 
         size_t reserveStack(unsigned int num) {
             if (num == 0)
                 return 0;
-            static const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
+            const unsigned moversp[] = {SUB_RSPIMM32, COMMANDEND};
             addInstructions(moversp, "sub rsp, imm32 - reserving stack");
             printImm32(num * 8);
             return num;
@@ -228,7 +230,7 @@ namespace NGGC {
         void freeStack(unsigned int num) {
             if (num == 0)
                 return;
-            static const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
+            const unsigned moversp[] = {ADD_RSPIMM32, COMMANDEND};
             addInstructions(moversp, "add rsp, imm32 - free stack");
             printImm32(num * 8);
         }
@@ -244,7 +246,7 @@ namespace NGGC {
             }
             label.sEndPrintf("%zu", argCount);
 
-            functionDefinition* elem = nullptr;
+            functionDefinition *elem = nullptr;
             if (functions.find(label.getStorage()) != functions.end()) {
                 elem = &functions[label.begin()];
                 if (elem->definitionOffset != (size_t) -1) {
@@ -267,7 +269,7 @@ namespace NGGC {
             currentDecl = elem;
             addDescription("Function declaration start:", label.getStorage());
             table.addNewLevel();
-            stack.clear();
+            master.clear();
             if (head->getLeft() != nullptr && head->getLeft()->getKind() != Kind_None) {
                 ASTNode *cur = head->getLeft();
                 while (cur != nullptr && cur->getKind() != Kind_None && cur->getLeft() != nullptr) {
@@ -276,11 +278,14 @@ namespace NGGC {
                     cur = cur->getRight();
                 }
             }
-            static const unsigned moverbp[] = {PUSH_RBP, MOV_RBPRSP, COMMANDEND};
+            const unsigned moverbp[] = {PUSH_RBP, MOV_RBPRSP, COMMANDEND};
             addInstructions(moverbp, "Function enter");
             reserveStack(elem->localVarsNum + elem->localVarsNum % 2);
             processFurther(head->getRight(), true);
-            freeStack(elem->localVarsNum + elem->localVarsNum % 2);
+            addDescription("Restore preserved");
+            master.restorePreserved();
+            size_t shift = elem->localVarsNum + elem->localVarsNum % 2 + master.stackUsed();
+            freeStack(shift);
             leave();
             table.deleteLocal();
             addDescription("Function declaration end");
@@ -290,14 +295,12 @@ namespace NGGC {
 
         void c_FuncCall(ASTNode *head) {
             ASTNode *lastNode = head->getLeft();
-            reserveStack(stack.getTop() % 2);
-
-            stack.saveStack(*compiled);
+            master.moveRsp();
 
             int argOffset = 3; // return address and rbp
             while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
                 processFurther(lastNode->getLeft(), true);
-                static const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
+                const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
                 addInstructions(movearg, "preparing argument");
                 printImm32(argOffset * -8);
                 lastNode = lastNode->getRight();
@@ -314,12 +317,13 @@ namespace NGGC {
                 functions[label.begin()].definitionOffset = -1;
                 foundFunc = functions.find(label.begin());
             }
+            addDescription("Prepare call");
+            master.prepareCall();
             foundFunc->value.usages.push((size_t) compiled->getLen() + 1);
-            static const unsigned call[] = {CALL_REL, COMMANDEND};
+            const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
-            stack.restoreStack(*compiled);
-            freeStack(stack.getTop() % 2);
+            master.moveRspBack();
             label.dest();
         }
 
@@ -335,14 +339,15 @@ namespace NGGC {
             }
 
             addDescription("Load variable from memory:", label->begin());
-            static const unsigned movOperation[] = {MOV_RAXRBP_MEM_DISPL32, COMMANDEND};
-            addInstructions(movOperation);
-            int32_t offset = (found->rbpOffset + 1) * -8;
-            printImm32(offset);
+            unsigned storedReg = master.getVar(found->rbpOffset + (found->type == Var_Loc ? 1 : 0), found->type,
+                                               label->begin());
+            movCommand movOperation = MOV_TABLE[REG_RAX][storedReg];
+            addDescription("Loading var: mov rax, tmpReg");
+            compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
         }
 
         void c_Number(ASTNode *head) {
-            static const unsigned movOperation[] = {MOV_RAXIMM32, COMMANDEND};
+            const unsigned movOperation[] = {MOV_RAXIMM32, COMMANDEND};
             addInstructions(movOperation, "Load number");
             printImm32((int) head->getLexeme().getDouble());
         }
@@ -355,29 +360,39 @@ namespace NGGC {
             addDescription("Processing math operation:", lexemeTypeToString(type));
             processFurther(head->getLeft(), true);
             addDescription("Processed left of math operator, saving");
-            stack.push(*compiled, REG_RAX);
-            processFurther(head->getRight(), true);
-            stack.pop(*compiled, REG_RBX);
-            addDescription("Processed right of math operator,results in rax and rbx now");
 
+            size_t tmpId = 0;
+            unsigned regTmp = master.allocateTmp(tmpId);
+            movCommand movOperation = MOV_TABLE[regTmp][REG_RAX];
+            compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
+
+            processFurther(head->getRight(), true);
+
+            regTmp = master.getTmp(tmpId);
             switch (type) {
                 case Lex_Plus: {
-                    static const unsigned processed[] = {ADD_RAXRBX, COMMANDEND};
-                    addInstructions(processed, "add rax, rbx");
+                    addDescription("add rax, tmpReg");
+                    const unsigned char *processed = ADDTABLE[REG_RAX][regTmp];
+                    compiled->append((char *) processed, sizeof(ADDTABLE[REG_RAX][regTmp]));
                     break;
                 }
                 case Lex_Minus: {
-                    static const unsigned processed[] = {SUB_RBXRAX, MOV_RAXRBX, COMMANDEND};
-                    addInstructions(processed, "sub rax, rbx, rax");
+                    addDescription("sub rax, tmpReg");
+                    const unsigned char *processed = SUBTABLE[regTmp][REG_RAX];
+                    compiled->append((char *) processed, sizeof(SUBTABLE[regTmp][REG_RAX]));
+                    addDescription("mov rax, tmpReg");
+                    const movCommand mov = MOV_TABLE[REG_RAX][regTmp];
+                    compiled->append((char *) mov.bytecode, sizeof(mov.bytecode));
                     break;
                 }
                 case Lex_Mul: {
-                    static const unsigned processed[] = {IMUL_RAXRBX, COMMANDEND};
-                    addInstructions(processed, "imul rax, rbx");
+                    addDescription("imul rax, tmpReg");
+                    const unsigned char *processed = IMULTABLE[REG_RAX][regTmp];
+                    compiled->append((char *) processed, sizeof(IMULTABLE[REG_RAX][regTmp]));
                     break;
                 }
                 case Lex_Div: {
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             XCHG_RAXRBX,
                             XOR_RDXRDX,
                             IDIV_RBX,
@@ -394,6 +409,7 @@ namespace NGGC {
                     return;
                 }
             }
+            master.releaseTmp(tmpId);
         }
 
         void c_AssignExpr(ASTNode *head) {
@@ -414,14 +430,14 @@ namespace NGGC {
             }
             addDescription("Processing assignment type node. Evaluating rvalue");
             processFurther(valNode, true);
-            static const unsigned movrbx[] = {MOV_RBXRAX, COMMANDEND};
+            const unsigned movrbx[] = {MOV_RBXRAX, COMMANDEND};
             addInstructions(movrbx, "mov rbx, rax");
             addDescription("Evaluated. Modifying stored value");
             size_t offset = (found->rbpOffset + 1) * 8;
             switch (type) {
                 case Lex_AdAssg: {
                     processFurther(idNode, true);
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             ADD_RAXRBX,
                             COMMANDEND
                     };
@@ -431,7 +447,7 @@ namespace NGGC {
                 }
                 case Lex_MiAssg: {
                     processFurther(idNode, true);
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             SUB_RBXRAX,
                             MOV_RAXRBX,
                             COMMANDEND
@@ -442,7 +458,7 @@ namespace NGGC {
                 }
                 case Lex_MuAssg: {
                     processFurther(idNode, true);
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             IMUL_RAXRBX,
                             COMMANDEND
                     };
@@ -452,7 +468,7 @@ namespace NGGC {
                 }
                 case Lex_DiAssg: {
                     processFurther(idNode, true);
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             XOR_RDXRDX,
                             XCHG_RAXRBX,
                             IDIV_RBX,
@@ -463,7 +479,7 @@ namespace NGGC {
                     break;
                 }
                 case Lex_Assg: {
-                    static const unsigned processed[] = {
+                    const unsigned processed[] = {
                             MOV_RBXRAX,
                             COMMANDEND
                     };
@@ -498,7 +514,10 @@ namespace NGGC {
 
             processFurther(head->getLeft(), true);
             Optional<VarSingle> found = table.get(type.getString());
-            storeRaxToOffsetRbp((found->rbpOffset + 1) * 8);
+            unsigned reg = master.getVar(found->rbpOffset + 1, Var_Loc, type.getString()->begin(), false);
+            //            storeRaxToOffsetRbp((found->rbpOffset + 1) * 8);
+            const movCommand command = MOV_TABLE[reg][REG_RAX];
+            compiled->append((char*)command.bytecode, sizeof(command.bytecode));
         }
 
         void c_MaUnOperator(ASTNode *head) {
@@ -506,7 +525,7 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
 
             if (type == Lex_Minus) {
-                static const unsigned processed[] = {
+                const unsigned processed[] = {
                         IMUL_RAXIMM32,
                         COMMANDEND
                 };
@@ -521,8 +540,8 @@ namespace NGGC {
         }
 
         void call(const StrContainer &label) {
-            reserveStack(stack.getTop() % 2);
-            stack.saveStack(*compiled);
+            master.moveRsp();
+            master.prepareCall();
             auto foundFunc = functions.find(label.begin());
             if (foundFunc == functions.end()) {
                 functions[label.begin()].init();
@@ -530,52 +549,68 @@ namespace NGGC {
                 foundFunc = functions.find(label.begin());
             }
             foundFunc->value.usages.push((size_t) compiled->getLen() + 1);
-            static const unsigned call[] = {CALL_REL, COMMANDEND};
+            const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
-            stack.restoreStack(*compiled);
-            freeStack(stack.getTop() % 2);
+            master.moveRspBack();
         }
 
         void c_CmpOperator(ASTNode *head) {
             auto type = head->getLexeme().getType();
 
             processFurther(head->getLeft(), true);
-            stack.push(*compiled, REG_RAX);
+
+            size_t tmpId = 0;
+            unsigned regTmp = master.allocateTmp(tmpId);
+            movCommand movOperation = MOV_TABLE[regTmp][REG_RAX];
+            compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
+
             processFurther(head->getRight(), true);
-            stack.pop(*compiled, REG_RDX);
-            const static unsigned preparecmp[] = {XCHG_RAXRBX, XOR_RAXRAX, CMP_RBXRDX, COMMANDEND};
-            addInstructions(preparecmp, "Now cmp arguments in rbx and rdx, rax = 0");
-            const static unsigned valid[] = {MOV_RAXIMM32, 0x01, 0x00, 0x00, 0x00, COMMANDEND};
-            const static unsigned commSize = sizeof(valid) / sizeof(valid[0]) - 1;
+
+            size_t tmpSecond = 0;
+            unsigned regTmpSecond = master.allocateTmp(tmpSecond);
+            movOperation = MOV_TABLE[regTmpSecond][REG_RAX];
+            compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
+
+            regTmp = master.getTmp(tmpId);
+            // regTmp - left register; regTmpSecond - rightRegister;
+
+            const unsigned preparecmp[] = {XOR_RAXRAX, COMMANDEND};
+            addInstructions(preparecmp, "Xor rax before");
+
+            const unsigned char *compare = CMPTABLE[regTmp][regTmpSecond];
+            compiled->append((char *) compare, sizeof(CMPTABLE[regTmp][regTmpSecond]));
+
+            const unsigned valid[] = {MOV_RAXIMM32, 0x01, 0x00, 0x00, 0x00, COMMANDEND};
+            const unsigned commSize = sizeof(valid) / sizeof(valid[0]) - 1;
             switch (type) {
                 case Lex_Eq: {
-                    const static unsigned jumpWrong[] = {JNE_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JNE_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "equal expected");
                     break;
                 }
                 case Lex_Leq: {
-                    const static unsigned jumpWrong[] = {JL_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JG_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "less equal expected");
                     break;
                 }
                 case Lex_Geq: {
-                    const static unsigned jumpWrong[] = {JG_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JL_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "greater equal expected");
                     break;
                 }
                 case Lex_Neq: {
-                    const static unsigned jumpWrong[] = {JE_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JE_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "not equal expected");
                     break;
                 }
                 case Lex_Gr: {
-                    const static unsigned jumpWrong[] = {JGE_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JLE_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "greater expected");
                     break;
                 }
                 case Lex_Le: {
-                    const static unsigned jumpWrong[] = {JLE_REL8, (char) commSize, COMMANDEND};
+                    const unsigned jumpWrong[] = {JGE_REL8, (char) commSize, COMMANDEND};
                     addInstructions(jumpWrong, "less expected");
                     break;
                 }
@@ -588,18 +623,23 @@ namespace NGGC {
                 }
             }
             addInstructions(valid, "set rax to 1");
+            master.releaseTmp(tmpId);
+            master.releaseTmp(tmpSecond);
         }
 
         void c_ReturnStmt(ASTNode *head) {
             if (head->getLeft())
                 processFurther(head->getLeft(), true);
-            freeStack(currentDecl->localVarsNum + currentDecl->localVarsNum % 2);
+            master.restorePreserved();
+            size_t backShift = currentDecl->localVarsNum + currentDecl->localVarsNum % 2 + master.stackUsed();
+            freeStack(backShift + backShift % 2);
             leave();
         }
 
         void c_Print(ASTNode *head) {
             processFurther(head->getLeft());
-            static const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
+            master.releaseSpecificReg(REG_RDI);
+            const unsigned prepareArgs[] = {MOV_RDIRAX, COMMANDEND};
             addInstructions(prepareArgs, "preparing SystemV args");
             StrContainer label = {};
             label.init("_print");
@@ -619,7 +659,7 @@ namespace NGGC {
             ASTNode *elseBranch = head->getRight()->getRight();
             processFurther(head->getLeft());
 
-            const static unsigned ifcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
+            const unsigned ifcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
             addInstructions(ifcmd, "If compare head");
             size_t jumpNumberPos = compiled->getLen();
             printImm32(0);
@@ -627,7 +667,7 @@ namespace NGGC {
             processFurther(ifBranch);
             size_t trueBranchEnd = compiled->getLen();
             if (elseBranch != nullptr && elseBranch->getKind() != Kind_None) {
-                const static unsigned elsecmd[] = {JMP_REL32, COMMANDEND};
+                const unsigned elsecmd[] = {JMP_REL32, COMMANDEND};
                 addInstructions(elsecmd, "else command");
                 size_t jumpElseNumberPos = compiled->getLen();
                 printImm32(0);
@@ -651,7 +691,7 @@ namespace NGGC {
 
             processFurther(head->getLeft(), true);
 
-            const static unsigned whileExitcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
+            const unsigned whileExitcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
             addInstructions(whileExitcmd, "while compare head");
             size_t jumpNumberPos = compiled->getLen();
             printImm32(0);
@@ -660,17 +700,17 @@ namespace NGGC {
             processFurther(head->getRight());
             size_t bodyEnd = compiled->getLen();
 
-            const static unsigned whileIterate[] = {JMP_REL32, COMMANDEND};
+            const unsigned whileIterate[] = {JMP_REL32, COMMANDEND};
             addInstructions(whileIterate, "while iterate");
             size_t jumpNumberPosIter = compiled->getLen();
             printImm32(0);
             size_t endPosition = compiled->getLen();
 
             int32_t displacement = int32_t(endPosition) - bodyStart;
-            compiled->append((char*)(&displacement), sizeof(displacement), jumpNumberPos);
+            compiled->append((char *) (&displacement), sizeof(displacement), jumpNumberPos);
 
             auto displacementIter = int32_t(bodyEnd - beginPosition) * -1 - 5;
-            compiled->append((char*)(&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
+            compiled->append((char *) (&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
         }
 
         void c_BasicFunction(ASTNode *head) {
@@ -690,8 +730,8 @@ namespace NGGC {
             globalVars.init();
             listing.init();
             table.init();
-            stack.init();
             lastDescription = 0;
+            master.init(compiled);
         }
 
         void init(ASTNode *head) {
@@ -703,7 +743,7 @@ namespace NGGC {
         void dest() {
             ClassicStack<CompileError>::Delete(cErrors);
             ByteContainer::Delete(compiled);
-            for (auto i = functions.begin(); i != functions.end(); i++){
+            for (auto i = functions.begin(); i != functions.end(); i++) {
                 (*i).value.dest();
                 i->dest();
             }
@@ -713,8 +753,8 @@ namespace NGGC {
             globalVars.dest();
             parsed->Delete();
             listing.dest();
+            master.dest();
             table.dest();
-            stack.dest();
             tree.dest();
         }
 

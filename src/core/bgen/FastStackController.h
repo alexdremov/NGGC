@@ -38,7 +38,7 @@ class FastStackController {
 public:
     void push(ByteContainer &container, unsigned reg) {
         if (regsUsed >= usedRegsN)
-            container.append(PUSH_TABLE[reg]);
+            container.append((char*)PUSH_TABLE[reg], sizeof(PUSH_TABLE[reg]));
         else
             pushRegisterStack(container, reg);
         top++;
@@ -46,7 +46,7 @@ public:
 
     void pop(ByteContainer &container, unsigned reg) {
         if (top > usedRegsN)
-            container.append(POP_TABLE[reg]);
+            container.append((char*)POP_TABLE[reg], sizeof(PUSH_TABLE[reg]));
         else
             popRegisterStack(container, reg);
         top--;
@@ -54,12 +54,12 @@ public:
 
     void saveStack(ByteContainer &container) const {
         for (unsigned i = 0; i < regsUsed; i++)
-            container.append(PUSH_TABLE[regs[i]]);
+            container.append((char*)PUSH_TABLE[regs[i]], sizeof(PUSH_TABLE[regs[i]]));
     }
 
     void restoreStack(ByteContainer &container) const {
         for (int i = (int) regsUsed - 1; i >= 0; i--)
-            container.append(POP_TABLE[regs[i]]);
+            container.append((char*)POP_TABLE[regs[i]], sizeof(PUSH_TABLE[regs[i]]));
     }
 
     void init() {
