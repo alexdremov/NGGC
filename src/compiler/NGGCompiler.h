@@ -283,14 +283,18 @@ namespace NGGC {
             reserveStack(elem->localVarsNum + elem->localVarsNum % 2);
             processFurther(head->getRight(), true);
             addDescription("Restore preserved");
-            master.restorePreserved();
-            size_t shift = elem->localVarsNum + elem->localVarsNum % 2 + master.stackUsed();
-            freeStack(shift);
-            leave();
+            funcBeforeReturn(elem);
             table.deleteLocal();
             addDescription("Function declaration end");
             label.dest();
             currentDecl = nullptr;
+        }
+
+        void funcBeforeReturn(const functionDefinition *elem) {
+            master.restorePreserved();
+            size_t shift = elem->localVarsNum + elem->localVarsNum % 2 + master.stackUsed();
+            freeStack(shift);
+            leave();
         }
 
         void c_FuncCall(ASTNode *head) {
@@ -630,10 +634,7 @@ namespace NGGC {
         void c_ReturnStmt(ASTNode *head) {
             if (head->getLeft())
                 processFurther(head->getLeft(), true);
-            master.restorePreserved();
-            size_t backShift = currentDecl->localVarsNum + currentDecl->localVarsNum % 2 + master.stackUsed();
-            freeStack(backShift + backShift % 2);
-            leave();
+            funcBeforeReturn(currentDecl);
         }
 
         void c_Print(ASTNode *head) {

@@ -6,6 +6,10 @@ extern "C" void print(int64_t in){
 	printf("%lld\n", in);
 }
 
+extern "C" void flush(){
+    fflush(stdout);
+}
+
 extern "C" int64_t in(){
     int64_t res = 0;
 	scanf("%lli", &res);

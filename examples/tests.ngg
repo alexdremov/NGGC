@@ -1,16 +1,4 @@
 def giveYouUp() {
-    let z = 1;
-    let y = 20;
-    let f = 300;
-    let t = 4000;
-    let k = 50000;
-    let o = 600000;
-    let l = 7000000;
-    print f + y + z + t + k + o + l;
-    lol();
-    print f + y + z + t + k + o + l;
-    lolNo();
-    print f + y + z + t + k + o + l;
 }
 
 def lol() {
