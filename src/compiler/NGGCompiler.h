@@ -665,7 +665,10 @@ namespace NGGC {
             size_t jumpNumberPos = compiled->getLen();
             printImm32(0);
             size_t trueBranchStart = compiled->getLen();
+            auto regStateIf = master.getState();
             processFurther(ifBranch);
+            master.restoreState(regStateIf);
+            regStateIf.dest();
             size_t trueBranchEnd = compiled->getLen();
             if (elseBranch != nullptr && elseBranch->getKind() != Kind_None) {
                 const unsigned elsecmd[] = {JMP_REL32, COMMANDEND};
@@ -673,9 +676,11 @@ namespace NGGC {
                 size_t jumpElseNumberPos = compiled->getLen();
                 printImm32(0);
                 trueBranchEnd = compiled->getLen();
+                auto regStateElse = master.getState();
                 processFurther(elseBranch);
+                master.restoreState(regStateElse);
+                regStateElse.dest();
                 size_t elseBranchEnd = compiled->getLen();
-
                 int32_t elseDisplacement = elseBranchEnd - trueBranchEnd;
                 compiled->append((char *) &elseDisplacement, sizeof(elseDisplacement), jumpElseNumberPos);
                 int32_t displacement = trueBranchEnd - trueBranchStart;
