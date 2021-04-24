@@ -20,25 +20,24 @@ namespace NGGC {
             ByteContainer *compiled;
             size_t stackLastIndex;
 
-            unsigned leastUsedReg(unsigned anyButNot=-1) {
-                unsigned lowest = RegLists::allRegs[anyButNot == 0? 1: 0];
-                for (unsigned int allReg : RegLists::allRegs) {
-                    if (allReg == anyButNot)
+            static unsigned int isRegCallPreserved(unsigned int reg) {
+                for (unsigned regPreserved: RegLists::regsPreserve)
+                    if (reg == regPreserved)
+                        return true;
+                return false;
+            }
+
+            unsigned leastUsedReg(unsigned anyButNot = -1) {
+                unsigned lowest = RegLists::allRegs[anyButNot == 0 ? 1 : 0];
+                unsigned lowestSize = usages[lowest].getSize() + 1;
+                for (unsigned int currentReg : RegLists::allRegs) {
+                    if (currentReg == anyButNot)
                         continue;
-                    bool active = false;
-                    for (size_t iter = usages[allReg].begin(); iter != usages[allReg].end();
-                         usages[allReg].nextIterator(&iter)) {
-                        RegVarUsage *usage = nullptr;
-                        usages[allReg].get(iter, &usage);
-                        if (usage->active) {
-                            active = true;
-                            break;
-                        }
-                    }
-                    if (!active)
-                        return allReg;
-                    if (usages[allReg].getSize() < usages[lowest].getSize()) {
-                        lowest = allReg;
+                    bool callPreserved = isRegCallPreserved(currentReg);
+                    int realUse = int(usages[currentReg].getSize()) + (callPreserved ? -1 : 0);
+                    if (realUse < int(lowestSize) || (realUse <= 0 && callPreserved)) {
+                        lowest = currentReg;
+                        lowestSize = realUse;
                     }
                 }
                 return lowest;
@@ -138,8 +137,8 @@ namespace NGGC {
                 }
             }
 
-            void arrangeForVar(RegVarUsage *pUsage, bool loadValue = true) {
-                unsigned reg = leastUsedReg();
+            void arrangeForVar(RegVarUsage *pUsage, bool loadValue = true, unsigned anyButNo = -1) {
+                unsigned reg = leastUsedReg(anyButNo);
                 deactivateReg(reg);
                 pUsage->active = true;
                 if (loadValue)
@@ -268,6 +267,13 @@ namespace NGGC {
                     }
                 }
             }
+            if (old.stackLastIndex != state.stackLastIndex) {
+                if (old.stackLastIndex > state.stackLastIndex) {
+                    addRsp((old.stackLastIndex - state.stackLastIndex) * 8);
+                } else {
+                    subRsp((state.stackLastIndex - old.stackLastIndex) * 8);
+                }
+            }
         }
 
         unsigned allocateTmp(size_t &id, unsigned anyButNot) {
@@ -315,7 +321,8 @@ namespace NGGC {
             registerState.usages[reg].remove(index);
         }
 
-        unsigned getVar(size_t offset, VarType type, const char *name, bool loadValue = true) {
+        // offset in bytes
+        unsigned getVar(size_t offset, VarType type, const char *name, bool loadValue = true, unsigned anyButNo = -1) {
             RegVarUsage usageFind = {};
             if (type == Var_Loc)
                 usageFind.initLocalVar(offset, name);
@@ -323,8 +330,9 @@ namespace NGGC {
                 usageFind.initGlobalVar(offset, name);
             size_t index = 0;
             unsigned reg = registerState.findUsage(index, usageFind);
+
             if (index == 0) {
-                registerState.arrangeForVar(&usageFind, loadValue);
+                registerState.arrangeForVar(&usageFind, loadValue, anyButNo);
                 reg = registerState.findUsage(index, usageFind);
                 assert(index != 0);
             }
@@ -361,6 +369,28 @@ namespace NGGC {
         void restorePreserved() {
             for (size_t i = 0; i < RegLists::regsPreserveN; i++)
                 registerState.activateTmp(i, false);
+        }
+
+        void alignStackBeforeCall(unsigned argsNumber) {
+            if (argsNumber <= RegLists::callRegsN)
+                return;
+            unsigned shift = (argsNumber - RegLists::callRegsN) * 8;
+            subRsp(shift % 2);
+        }
+
+        void prepareCallArgumentFromRAX(unsigned argsNumber, unsigned number) {
+            if (number <= RegLists::callRegsN)
+                compiledBin->append((char *) MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode,
+                                    sizeof(MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode));
+            else
+                compiledBin->append((char *) PUSH_TABLE[REG_RAX], sizeof(PUSH_TABLE[REG_RAX]));
+        }
+
+        void clearCallStack(unsigned argsNumber) {
+            if (argsNumber <= RegLists::callRegsN)
+                return;
+            unsigned shift = (argsNumber - RegLists::callRegsN) * 8;
+            addRsp(shift);
         }
 
         void init(ByteContainer *container) {

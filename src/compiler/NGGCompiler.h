@@ -12,6 +12,8 @@
 #include "../src/core/bgen/FastStackController.h"
 #include "core/eloquent/ASMStructure/ElCommand.h"
 
+#define EXCEPT(x) x
+
 namespace NGGC {
     struct offset {
         size_t value;
@@ -218,6 +220,15 @@ namespace NGGC {
                    (pNode->getKind() == Kind_VarDef ? 1 : 0);
         }
 
+        void collectUsedDefinedVars(ASTNode *head, HashMasm<Lexeme>& used){
+            if (!head)
+                return;
+            if (head->getKind() == Kind_Identifier)
+                used[head->getLexeme().getString()->begin()] = head->getLexeme();
+            collectUsedDefinedVars(head->getLeft(), used);
+            collectUsedDefinedVars(head->getRight(), used);
+        }
+
         size_t reserveStack(unsigned int num) {
             if (num == 0)
                 return 0;
@@ -292,7 +303,7 @@ namespace NGGC {
 
         void funcBeforeReturn(const functionDefinition *elem) {
             master.restorePreserved();
-            size_t shift = elem->localVarsNum + elem->localVarsNum % 2 + master.stackUsed();
+            size_t shift = elem->localVarsNum + (elem->localVarsNum % 2) + master.stackUsed();
             freeStack(shift);
             leave();
         }
@@ -436,62 +447,47 @@ namespace NGGC {
                 return;
             }
             addDescription("Processing assignment type node. Evaluating rvalue");
+
             processFurther(valNode, true);
-            const unsigned movrbx[] = {MOV_RBXRAX, COMMANDEND};
-            addInstructions(movrbx, "mov rbx, rax");
+            size_t tmpId = 0;
+            unsigned tmpReg = master.allocateTmp(tmpId, EXCEPT(REG_RDX));
+            const movCommand movtmp = MOV_TABLE[tmpReg][REG_RAX];
+            compiled->append((char*)movtmp.bytecode, sizeof(movtmp.bytecode));
+
             addDescription("Evaluated. Modifying stored value");
-            size_t offset = (found->rbpOffset + 1) * 8;
+
+            unsigned varReg = master.getVar(found->rbpOffset + 1, found->type, name->begin(), true, EXCEPT(tmpReg));
             switch (type) {
                 case Lex_AdAssg: {
-                    processFurther(idNode, true);
-                    const unsigned processed[] = {
-                            ADD_RAXRBX,
-                            COMMANDEND
-                    };
-                    addInstructions(processed, "add rax, rbx - += operation");
-                    storeRaxToOffsetRbp(offset);
+                    const unsigned char* processed = ADDTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(ADDTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_MiAssg: {
-                    processFurther(idNode, true);
-                    const unsigned processed[] = {
-                            SUB_RBXRAX,
-                            MOV_RAXRBX,
-                            COMMANDEND
-                    };
-                    addInstructions(processed, "sub rax, rbx - -= operation");
-                    storeRaxToOffsetRbp(offset);
+                    const unsigned char* processed = SUBTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(SUBTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_MuAssg: {
-                    processFurther(idNode, true);
-                    const unsigned processed[] = {
-                            IMUL_RAXRBX,
-                            COMMANDEND
-                    };
-                    addInstructions(processed, "imul rax, rbx - *= operation");
-                    storeRaxToOffsetRbp(offset);
+                    const unsigned char* processed = IMULTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(IMULTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_DiAssg: {
-                    processFurther(idNode, true);
+                    const movCommand movrax = MOV_TABLE[REG_RAX][varReg];
+                    compiled->append((char*)movrax.bytecode, sizeof(movrax.bytecode));
                     const unsigned processed[] = {
                             XOR_RDXRDX,
-                            XCHG_RAXRBX,
-                            IDIV_RBX,
                             COMMANDEND
                     };
-                    addInstructions(processed, "idiv rax, rbx - /= operation");
-                    storeRaxToOffsetRbp(offset);
+                    addInstructions(processed, "prepare for division");
+                    const unsigned char* divide = IDIVTABLE[tmpReg];
+                    compiled->append((char*)divide, sizeof(IDIVTABLE[tmpReg]));
                     break;
                 }
                 case Lex_Assg: {
-                    const unsigned processed[] = {
-                            MOV_RBXRAX,
-                            COMMANDEND
-                    };
-                    addInstructions(processed, "mov rbx, rax - = operation");
-                    storeRaxToOffsetRbp(offset);
+                    const movCommand movvar = MOV_TABLE[varReg][tmpReg];
+                    compiled->append((char*)movvar.bytecode, sizeof(movvar.bytecode));
                     break;
                 }
                 default: {
@@ -502,6 +498,7 @@ namespace NGGC {
                     return;
                 }
             }
+            master.releaseTmp(tmpId);
         }
 
         void c_VarDef(ASTNode *head) {
@@ -522,7 +519,6 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
             Optional<VarSingle> found = table.get(type.getString());
             unsigned reg = master.getVar(found->rbpOffset + 1, Var_Loc, type.getString()->begin(), false);
-            //            storeRaxToOffsetRbp((found->rbpOffset + 1) * 8);
             const movCommand command = MOV_TABLE[reg][REG_RAX];
             compiled->append((char*)command.bytecode, sizeof(command.bytecode));
         }
@@ -695,11 +691,21 @@ namespace NGGC {
         }
 
         void c_WhileStmt(ASTNode *head) {
+            HashMasm<Lexeme> usedVars = {};
+            usedVars.init();
+            collectUsedDefinedVars(head, usedVars);
+            for (auto i = usedVars.begin(); i != usedVars.end(); i++) {
+                Optional<VarSingle> found = table.get(i->value.getString());
+                if (!found.hasValue())
+                    continue;
+                master.getVar(found->rbpOffset + 1, found->type, i->value.getString()->begin(), true);
+            }
+
             size_t beginPosition = compiled->getLen();
             addDescription("While condition");
-
             auto state = master.getState();
             processFurther(head->getLeft(), true);
+            auto stateAfterCond = master.getState();
 
             const unsigned whileExitcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
             addInstructions(whileExitcmd, "while compare head");
@@ -721,7 +727,10 @@ namespace NGGC {
 
             auto displacementIter = int32_t(bodyEnd - beginPosition) * -1 - 5;
             compiled->append((char *) (&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
+            master.restoreState(stateAfterCond);
             state.dest();
+            stateAfterCond.dest();
+            usedVars.dest();
         }
 
         void c_BasicFunction(ASTNode *head) {
