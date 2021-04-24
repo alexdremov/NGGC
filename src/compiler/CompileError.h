@@ -34,6 +34,7 @@ namespace NGGC {
         void init(const char *message, const Lexeme& lex) {
             msg = StrContainer::New();
             msg->init(message);
+            msg->append(" ");
             line = lex.getLine();
             col = lex.getCol();
         }

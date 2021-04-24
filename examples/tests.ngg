@@ -1,37 +1,14 @@
 def giveYouUp() {
-}
-
-def lol() {
-    let z = 10;
-    let y = 20;
-    let f = 20;
-    let zz = 10;
-    let yy = 20;
-    let ff = 20;
-    let zzz = 10;
-    let yyy = 20;
-    let fff = 20;
-    let zzzz = 10;
-    let yyyy = 20;
-    let ffff = 20;
-    let o = 1;
-    lolNo();
-    print f + y + z + ff + yy + zz + fff + yyy + zzz + ffff + yyyy + zzzz + o;
-    lolNo();
-}
-
-def lolNo() {
-    let z = 10;
-    let y = 20;
-    let f = 20;
-    let zz = 10;
-    let yy = 20;
-    let ff = 20;
-    let zzz = 10;
-    let yyy = 20;
-    let fff = 20;
-    let zzzz = 10;
-    let yyyy = 20;
-    let ffff = 20;
-    print f + y + z + ff + yy + zz + fff + yyy + zzz + ffff + yyyy + zzzz;
+    let x = input;
+    let y = 10;
+    if (3 > x) {
+        let a; let b; let c; let o; let f; let r; let m; let p; let s; let q; let z;
+        y += x;
+        a = 0; b = 1; c = 2; o = 3; f = 4; r = 5; m = 6; p = 7; s = 8; q = 9; z = 10;
+    } else {
+        print x;
+        print y;
+    }
+    print x;
+    print y;
 }

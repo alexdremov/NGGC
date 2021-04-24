@@ -665,7 +665,10 @@ namespace NGGC {
             size_t jumpNumberPos = compiled->getLen();
             printImm32(0);
             size_t trueBranchStart = compiled->getLen();
+            auto regStateIf = master.getState();
             processFurther(ifBranch);
+            master.restoreState(regStateIf);
+            regStateIf.dest();
             size_t trueBranchEnd = compiled->getLen();
             if (elseBranch != nullptr && elseBranch->getKind() != Kind_None) {
                 const unsigned elsecmd[] = {JMP_REL32, COMMANDEND};
@@ -673,9 +676,11 @@ namespace NGGC {
                 size_t jumpElseNumberPos = compiled->getLen();
                 printImm32(0);
                 trueBranchEnd = compiled->getLen();
+                auto regStateElse = master.getState();
                 processFurther(elseBranch);
+                master.restoreState(regStateElse);
+                regStateElse.dest();
                 size_t elseBranchEnd = compiled->getLen();
-
                 int32_t elseDisplacement = elseBranchEnd - trueBranchEnd;
                 compiled->append((char *) &elseDisplacement, sizeof(elseDisplacement), jumpElseNumberPos);
                 int32_t displacement = trueBranchEnd - trueBranchStart;
@@ -690,6 +695,7 @@ namespace NGGC {
             size_t beginPosition = compiled->getLen();
             addDescription("While condition");
 
+            auto state = master.getState();
             processFurther(head->getLeft(), true);
 
             const unsigned whileExitcmd[] = {TEST_RAXRAX, JE_REL32, COMMANDEND};
@@ -699,8 +705,8 @@ namespace NGGC {
 
             size_t bodyStart = compiled->getLen();
             processFurther(head->getRight());
+            master.restoreState(state);
             size_t bodyEnd = compiled->getLen();
-
             const unsigned whileIterate[] = {JMP_REL32, COMMANDEND};
             addInstructions(whileIterate, "while iterate");
             size_t jumpNumberPosIter = compiled->getLen();
@@ -712,6 +718,7 @@ namespace NGGC {
 
             auto displacementIter = int32_t(bodyEnd - beginPosition) * -1 - 5;
             compiled->append((char *) (&displacementIter), sizeof(displacementIter), jumpNumberPosIter);
+            state.dest();
         }
 
         void c_BasicFunction(ASTNode *head) {
