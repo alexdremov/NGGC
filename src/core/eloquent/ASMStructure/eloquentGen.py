@@ -381,6 +381,13 @@ def pushPopTable() -> str:
     res += "};\n\n"
     return res
 
+def idivPopTable() -> str:
+    res = "constexpr static unsigned char IDIVTABLE[REGSNUM][3] = {\n"
+    for outReg, _ in registers:
+        res += "{IDIV_" + outReg.upper() + "},\n"
+    res += "};\n\n"
+    return res
+
 
 def movRspMemTable() -> str:
     res = "constexpr static unsigned char MEMRSPTOREG[REGSNUM][4] = {\n"
@@ -492,7 +499,8 @@ if "__main__" == __name__:
                                 testTable() +
                                 cmpTable() +
                                 imulTable() +
-                                xchgRaxTable())
+                                xchgRaxTable()+
+                                idivPopTable())
 
     with open("ElCommand.h", "w") as outputFile:
         outputFile.write(template)

@@ -20,9 +20,11 @@ namespace NGGC {
             ByteContainer *compiled;
             size_t stackLastIndex;
 
-            unsigned leastUsedReg() {
-                unsigned lowest = RegLists::allRegs[0];
+            unsigned leastUsedReg(unsigned anyButNot=-1) {
+                unsigned lowest = RegLists::allRegs[anyButNot == 0? 1: 0];
                 for (unsigned int allReg : RegLists::allRegs) {
+                    if (allReg == anyButNot)
+                        continue;
                     bool active = false;
                     for (size_t iter = usages[allReg].begin(); iter != usages[allReg].end();
                          usages[allReg].nextIterator(&iter)) {
@@ -266,6 +268,13 @@ namespace NGGC {
                     }
                 }
             }
+        }
+
+        unsigned allocateTmp(size_t &id, unsigned anyButNot) {
+            unsigned reg = registerState.leastUsedReg(anyButNot);
+            id = tmpIdNow++;
+            registerState.addTmpToReg(id, reg);
+            return reg;
         }
 
         unsigned allocateTmp(size_t &id) {

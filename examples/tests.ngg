@@ -1,14 +1,11 @@
+
 def giveYouUp() {
-    let x = input;
-    let y = 10;
-    if (3 > x) {
-        let a; let b; let c; let o; let f; let r; let m; let p; let s; let q; let z;
-        y += x;
-        a = 0; b = 1; c = 2; o = 3; f = 4; r = 5; m = 6; p = 7; s = 8; q = 9; z = 10;
-    } else {
-        print x;
-        print y;
-    }
-    print x;
-    print y;
+	print 10 / 2;
+
+    print fact(input);
+}
+
+def fact(x){
+    if (x <= 1) {ret 1;}
+    ret fact(x - 1) * x;
 }

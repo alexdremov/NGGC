@@ -366,7 +366,7 @@ namespace NGGC {
             addDescription("Processed left of math operator, saving");
 
             size_t tmpId = 0;
-            unsigned regTmp = master.allocateTmp(tmpId);
+            unsigned regTmp = master.allocateTmp(tmpId, REG_RDX);
             movCommand movOperation = MOV_TABLE[regTmp][REG_RAX];
             compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
 
@@ -396,12 +396,15 @@ namespace NGGC {
                     break;
                 }
                 case Lex_Div: {
-                    const unsigned processed[] = {
-                            XCHG_RAXRBX,
+                    const unsigned char *processed = XCHG_RAXTABLE[regTmp];
+                    compiled->append((char *) processed, sizeof(XCHG_RAXTABLE[regTmp]));
+                    master.releaseSpecificReg(REG_RDX);
+                    const unsigned prepare[] = {
                             XOR_RDXRDX,
-                            IDIV_RBX,
                             COMMANDEND};
-                    addInstructions(processed, "idiv rbx, rax");
+                    addInstructions(prepare, "xor before division");
+                    const unsigned char *division = IDIVTABLE[regTmp];
+                    compiled->append((char *) processed, sizeof(IDIVTABLE[regTmp]));
                     break;
                 }
                 case Lex_Pow:
