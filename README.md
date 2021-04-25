@@ -60,6 +60,65 @@ NGGC help
 -d             dump AST graph
 ```
 
+## Optimization features
+
+### Registers planning&management
+
+Why use memory when you can use registers only?
+
+This code does not use memory access at all. Planner maps registers to variables and saves values to RAM only when all registers are exhausted.
+
+```python
+def giveYouUp() {
+	let i = 0;
+	let res = 0;
+	while (i < 100) {
+		res += i * i;
+		i += 1;
+	}
+	print res;
+}
+```
+
+```asm
+0:  55                      push   rbp
+1:  90                      nop
+2:  48 89 e5                mov    rbp,rsp
+5:  48 81 ec 10 00 00 00    sub    rsp,0x10
+c:  b8 00 00 00 00          mov    eax,0x0
+11: 49 89 c3                mov    r11,rax
+14: b8 00 00 00 00          mov    eax,0x0
+19: 48 89 c1                mov    rcx,rax
+1c: 4c 89 d8                mov    rax,r11
+1f: 49 89 c2                mov    r10,rax
+22: b8 64 00 00 00          mov    eax,0x64
+27: 49 89 c1                mov    r9,rax
+2a: 48 31 c0                xor    rax,rax
+2d: 4d 39 ca                cmp    r10,r9
+30: 7d 05                   jge    0x37
+32: b8 01 00 00 00          mov    eax,0x1
+37: 48 85 c0                test   rax,rax
+3a: 0f 84 23 00 00 00       je     0x63
+40: 4c 89 d8                mov    rax,r11
+43: 49 89 c2                mov    r10,rax
+46: 4c 89 d8                mov    rax,r11
+49: 49 0f af c2             imul   rax,r10
+4d: 49 89 c2                mov    r10,rax
+50: 4c 01 d1                add    rcx,r10
+53: b8 01 00 00 00          mov    eax,0x1
+58: 49 89 c2                mov    r10,rax
+5b: 4d 01 d3                add    r11,r10
+5e: e9 b9 ff ff ff          jmp    0x1c
+63: 48 89 c8                mov    rax,rcx
+66: 48 89 c7                mov    rdi,rax
+69: e8 00 00 00 00          call   0x6e
+6e: 48 81 c4 10 00 00 00    add    rsp,0x10
+75: 5d                      pop    rbp
+76: 90                      nop
+77: c3                      ret
+```
+
+
 ## Structure
 ### Main function: 
 giveYouUp() -> main()
