@@ -16,13 +16,13 @@ namespace NGGC {
 
     struct RegVarUsage {
         RegisterUsageType type;
-        size_t offset;
+        int32_t offset;
         bool active;
         size_t stackIndex;
         size_t id;
         const char *name;
 
-        void initGlobalVar(size_t varOffset, const char *varName) {
+        void initGlobalVar(int32_t varOffset, const char *varName) {
             name = varName;
             offset = varOffset;
             type = GLO_REG;
@@ -32,7 +32,7 @@ namespace NGGC {
             assert(false);
         }
 
-        void initLocalVar(size_t varOffset, const char *varName) {
+        void initLocalVar(int32_t varOffset, const char *varName) {
             assert(varOffset != 0);
             name = varName;
             offset = varOffset;

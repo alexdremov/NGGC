@@ -249,12 +249,7 @@ namespace NGGC {
         void c_FuncDecl(ASTNode *head) {
             StrContainer label = {};
             label.init(head->getLexeme().getString()->begin());
-            size_t argCount = 0;
-            ASTNode *arg = head->getLeft();
-            while (arg != nullptr && arg->getKind() != Kind_None) {
-                argCount++;
-                arg = arg->getRight();
-            }
+            const unsigned argCount = countArgsNum(head->getLeft());
             label.sEndPrintf("%zu", argCount);
 
             functionDefinition *elem = nullptr;
@@ -310,36 +305,62 @@ namespace NGGC {
 
         void c_FuncCall(ASTNode *head) {
             ASTNode *lastNode = head->getLeft();
-            master.moveRsp();
 
-            int argOffset = 3; // return address and rbp
+            master.deactivateCallNotPreserved();
+            master.deactivateCallRegisters();
+            master.alignRsp();
+
+            const int argNum = countArgsNum(lastNode);
+            master.alignStackBeforeCall(argNum);
+
+            FastList<size_t> tmpCallArgsIds = {};
+            tmpCallArgsIds.init(16);
+
+            int argNo = 0;
+            lastNode = head->getLeft();
             while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
                 processFurther(lastNode->getLeft(), true);
-                const unsigned movearg[] = {MOV_MEM_RSP_DISPL32RAX, COMMANDEND};
-                addInstructions(movearg, "preparing argument");
-                printImm32(argOffset * -8);
-                lastNode = lastNode->getRight();
-                argOffset++;
+                master.prepareCallArgumentFromRAX(tmpCallArgsIds, argNo);
+                argNo++;
             }
+            master.deactivateCallNotPreserved();
 
             StrContainer label {};
             label.init(head->getLexeme().getString()->begin());
-            label.sEndPrintf("%d", argOffset - 3);
+            label.sEndPrintf("%d", argNum);
 
             auto foundFunc = functions.find(label.begin());
             if (foundFunc == functions.end()) {
-                functions[label.begin()].init();
-                functions[label.begin()].definitionOffset = -1;
+                auto& tmpFound = functions[label.begin()];
+                tmpFound.init();
+                tmpFound.definitionOffset = -1;
                 foundFunc = functions.find(label.begin());
             }
+
+            for (size_t i = tmpCallArgsIds.begin(); i != tmpCallArgsIds.end(); tmpCallArgsIds.nextIterator(&i)){
+                size_t id = 0;
+                tmpCallArgsIds.get(i, &id);
+                master.getTmp(id);
+            }
+
             addDescription("Prepare call");
-            master.prepareCall();
             foundFunc->value.usages.push((size_t) compiled->getLen() + 1);
             const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
-            master.moveRspBack();
+            master.moveRspBackAfterAlign();
+            master.clearCallStack(argNum);
             label.dest();
+            tmpCallArgsIds.dest();
+        }
+
+        static int countArgsNum(ASTNode *lastNode) {
+            int argNum = 0;
+            while (lastNode != nullptr && lastNode->getKind() != Kind_None) {
+                lastNode = lastNode->getRight();
+                argNum++;
+            }
+            return argNum;
         }
 
         void c_Identifier(ASTNode *head) {
@@ -543,8 +564,6 @@ namespace NGGC {
         }
 
         void call(const StrContainer &label) {
-            master.moveRsp();
-            master.prepareCall();
             auto foundFunc = functions.find(label.begin());
             if (foundFunc == functions.end()) {
                 functions[label.begin()].init();
@@ -555,7 +574,6 @@ namespace NGGC {
             const unsigned call[] = {CALL_REL, COMMANDEND};
             addInstructions(call, "call");
             printImm32(0);
-            master.moveRspBack();
         }
 
         void c_CmpOperator(ASTNode *head) {
