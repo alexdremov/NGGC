@@ -457,7 +457,14 @@ def imulTable() -> str:
 
 
 def xchgRax() -> str:
-    return generalCommandAddReg(0x90, "XCHG_RAX", True)
+    prefix = "XCHG_RAX"
+    command = 0x90
+    ret = "\n"
+    for num, elem in enumerate(registers):
+        ret += "#define " + prefix.upper() + elem[0].upper() + " " + hex(prefixRegs[elem[1][0]]) + ", " + hex(command + num) + "\n"
+        if num == 7:
+            command -= 8
+    return ret
 
 
 if "__main__" == __name__:
