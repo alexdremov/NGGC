@@ -129,6 +129,17 @@ It was essential to correctly work with structures that change program flow. For
 ### In-loop variables usage optimizations
 Before entering a loop, compiler checks for used variables and force-allocate registers for them. Thus, in-loop memory access is minimal.
 
+## Plans
+- Middle representation – Currently, machine code is generated directly from AST. That poses several issues on redundant code optimisations. Middle representation allows to optimize instructions like
+```asm
+mov    eax,0x0
+mov    r11,rax
+;===============
+mov    r11,0x0
+;=============== or even better
+xor    r11,r11
+```
+- AST-level optimizations – There are possibilities of high level optimizations. For example, constant expressions evaluation, unreachable code removal, and tail calls.
 
 ## Structure
 ### Main function: 
