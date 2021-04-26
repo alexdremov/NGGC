@@ -111,11 +111,13 @@ c:  b8 00 00 00 00          mov    eax,0x0
 5e: e9 b9 ff ff ff          jmp    0x1c
 63: 48 89 c8                mov    rax,rcx
 66: 48 89 c7                mov    rdi,rax
-69: e8 00 00 00 00          call   0x6e
-6e: 48 81 c4 10 00 00 00    add    rsp,0x10
-75: 5d                      pop    rbp
-76: 90                      nop
-77: c3                      ret
+69: 48 89 8d f0 ff ff ff    mov    QWORD PTR [rbp-0x10],rcx
+70: 4c 89 9d f8 ff ff ff    mov    QWORD PTR [rbp-0x8],r11
+77: e8 00 00 00 00          call   0x7c
+7c: 48 81 c4 10 00 00 00    add    rsp,0x10
+83: 5d                      pop    rbp
+84: 90                      nop
+85: c3                      ret
 ```
 
 ### In-loop variables usage optimizations
