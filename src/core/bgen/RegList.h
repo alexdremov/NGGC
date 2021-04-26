@@ -22,6 +22,7 @@ namespace NGGC {
                 REG_RSI,
                 REG_RDI,
         };
+
         static constexpr unsigned callRegs[] = {
                 REG_RDI,
                 REG_RSI,
@@ -30,6 +31,7 @@ namespace NGGC {
                 REG_R8,
                 REG_R9,
         };
+
         static constexpr unsigned regsPreserve[] = {
                 REG_RBX,
                 REG_R12,

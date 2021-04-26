@@ -40,7 +40,9 @@ struct movCommand {
     unsigned char bytecode[3];
 };
 
-{{TABLES}}
+struct OpCodes {
+    {{TABLES}}
+};
 
 
 #endif //NGGC_ELCOMMAND_H

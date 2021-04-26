@@ -7,8 +7,6 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -Wpedantic -Wall -Wex
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast -I/usr/local/include")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  -L/usr/local/lib")
 
-set(ASAN_OPTIONS "detect_leaks=1")
-
 include_directories(src src/helpers src/NGGC src/core/bgen src/core/eloquent/ASMStructure)
 
 set(CORE_CPPS "src/core.cpp")

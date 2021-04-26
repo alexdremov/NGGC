@@ -25,20 +25,20 @@ class FastStackController {
     size_t top;
 
     void pushRegisterStack(ByteContainer &container, unsigned reg) {
-        const movCommand &cmd = MOV_TABLE[regs[regsUsed]][reg];
+        const movCommand &cmd = OpCodes::MOV_TABLE[regs[regsUsed]][reg];
         container.append(reinterpret_cast<const char *>(cmd.bytecode), 3);
         regsUsed++;
     }
 
     void popRegisterStack(ByteContainer &container, unsigned reg) {
-        const movCommand &cmd = MOV_TABLE[reg][regs[--regsUsed]];
+        const movCommand &cmd = OpCodes::MOV_TABLE[reg][regs[--regsUsed]];
         container.append(reinterpret_cast<const char *>(cmd.bytecode), 3);
     }
 
 public:
     void push(ByteContainer &container, unsigned reg) {
         if (regsUsed >= usedRegsN)
-            container.append((char*)PUSH_TABLE[reg], sizeof(PUSH_TABLE[reg]));
+            container.append((char*)OpCodes::PUSH_TABLE[reg], sizeof(OpCodes::PUSH_TABLE[reg]));
         else
             pushRegisterStack(container, reg);
         top++;
@@ -46,7 +46,7 @@ public:
 
     void pop(ByteContainer &container, unsigned reg) {
         if (top > usedRegsN)
-            container.append((char*)POP_TABLE[reg], sizeof(PUSH_TABLE[reg]));
+            container.append((char*)OpCodes::POP_TABLE[reg], sizeof(OpCodes::PUSH_TABLE[reg]));
         else
             popRegisterStack(container, reg);
         top--;
@@ -54,12 +54,12 @@ public:
 
     void saveStack(ByteContainer &container) const {
         for (unsigned i = 0; i < regsUsed; i++)
-            container.append((char*)PUSH_TABLE[regs[i]], sizeof(PUSH_TABLE[regs[i]]));
+            container.append((char*)OpCodes::PUSH_TABLE[regs[i]], sizeof(OpCodes::PUSH_TABLE[regs[i]]));
     }
 
     void restoreStack(ByteContainer &container) const {
         for (int i = (int) regsUsed - 1; i >= 0; i--)
-            container.append((char*)POP_TABLE[regs[i]], sizeof(PUSH_TABLE[regs[i]]));
+            container.append((char*)OpCodes::POP_TABLE[regs[i]], sizeof(OpCodes::PUSH_TABLE[regs[i]]));
     }
 
     void init() {

@@ -29,15 +29,13 @@ namespace NGGC {
 
             unsigned leastUsedReg(unsigned anyButNot = -1) {
                 unsigned lowest = RegLists::allRegs[anyButNot == 0 ? 1 : 0];
-                unsigned lowestSize = usages[lowest].getSize() + 1;
                 for (unsigned int currentReg : RegLists::allRegs) {
                     if (currentReg == anyButNot)
                         continue;
-                    bool callPreserved = isRegCallPreserved(currentReg);
-                    int realUse = int(usages[currentReg].getSize()) + (callPreserved ? -1 : 0);
-                    if (realUse < int(lowestSize) || (realUse <= 0 && callPreserved)) {
+//                    bool callPreserved = isRegCallPreserved(currentReg);
+                    unsigned realUse = usages[currentReg].getSize();
+                    if (realUse < usages[lowest].getSize()) {
                         lowest = currentReg;
-                        lowestSize = realUse;
                     }
                 }
                 return lowest;
@@ -96,36 +94,36 @@ namespace NGGC {
 
             void saveRegRbpOffset(int32_t offset, unsigned int reg) const {
                 int32_t displacement = offset * -8;
-                const unsigned char *command = REGTOMEMRBP[reg];
-                compiled->append((char *) command, sizeof(REGTOMEMRBP[reg]));
+                const unsigned char *command = OpCodes::REGTOMEMRBP[reg];
+                compiled->append((char *) command, sizeof(OpCodes::REGTOMEMRBP[reg]));
                 compiled->append((char *) (&displacement), sizeof(int32_t));
             }
 
             void restRegRbpOffset(int32_t offset, unsigned int reg) const {
                 int32_t displacement = offset * -8;
-                const unsigned char *command = MEMRBPTOREG[reg];
-                compiled->append((char *) command, sizeof(MEMRBPTOREG[reg]));
+                const unsigned char *command = OpCodes::MEMRBPTOREG[reg];
+                compiled->append((char *) command, sizeof(OpCodes::MEMRBPTOREG[reg]));
                 compiled->append((char *) (&displacement), sizeof(int32_t));
             }
 
             void saveRegStack(size_t index, unsigned int reg) const {
                 int32_t stackDisplacement = stackLastIndex - index;
                 stackDisplacement *= 8;
-                const unsigned char *command = REGTOMEMRSP[reg];
-                compiled->append((char *) command, sizeof(REGTOMEMRSP[reg]));
+                const unsigned char *command = OpCodes::REGTOMEMRSP[reg];
+                compiled->append((char *) command, sizeof(OpCodes::REGTOMEMRSP[reg]));
                 compiled->append((char *) (&stackDisplacement), sizeof(int32_t));
             }
 
             void restRegStack(size_t index, unsigned int reg) const {
                 int32_t stackDisplacement = stackLastIndex - index;
                 stackDisplacement *= 8;
-                const unsigned char *command = MEMRSPTOREG[reg];
-                compiled->append((char *) command, sizeof(MEMRSPTOREG[reg]));
+                const unsigned char *command = OpCodes::MEMRSPTOREG[reg];
+                compiled->append((char *) command, sizeof(OpCodes::MEMRSPTOREG[reg]));
                 compiled->append((char *) (&stackDisplacement), sizeof(int32_t));
             }
 
             void pushRegister(unsigned int num) const {
-                compiled->append((char *) PUSH_TABLE[num], sizeof(PUSH_TABLE[num]));
+                compiled->append((char *) OpCodes::PUSH_TABLE[num], sizeof(OpCodes::PUSH_TABLE[num]));
             }
 
             void saveTmp(RegVarUsage *pUsage, unsigned int num) {
@@ -380,10 +378,10 @@ namespace NGGC {
 
         void prepareCallArgumentFromRAX(unsigned argsNumber, unsigned number) {
             if (number <= RegLists::callRegsN)
-                compiledBin->append((char *) MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode,
-                                    sizeof(MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode));
+                compiledBin->append((char *) OpCodes::MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode,
+                                    sizeof(OpCodes::MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode));
             else
-                compiledBin->append((char *) PUSH_TABLE[REG_RAX], sizeof(PUSH_TABLE[REG_RAX]));
+                compiledBin->append((char *) OpCodes::PUSH_TABLE[REG_RAX], sizeof(OpCodes::PUSH_TABLE[REG_RAX]));
         }
 
         void clearCallStack(unsigned argsNumber) {

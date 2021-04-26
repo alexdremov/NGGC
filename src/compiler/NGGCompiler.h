@@ -356,7 +356,7 @@ namespace NGGC {
             addDescription("Load variable from memory:", label->begin());
             unsigned storedReg = master.getVar(found->rbpOffset + (found->type == Var_Loc ? 1 : 0), found->type,
                                                label->begin());
-            movCommand movOperation = MOV_TABLE[REG_RAX][storedReg];
+            movCommand movOperation = OpCodes::MOV_TABLE[REG_RAX][storedReg];
             addDescription("Loading var: mov rax, tmpReg");
             compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
         }
@@ -378,7 +378,7 @@ namespace NGGC {
 
             size_t tmpId = 0;
             unsigned regTmp = master.allocateTmp(tmpId, REG_RDX);
-            movCommand movOperation = MOV_TABLE[regTmp][REG_RAX];
+            movCommand movOperation = OpCodes::MOV_TABLE[regTmp][REG_RAX];
             compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
 
             processFurther(head->getRight(), true);
@@ -387,35 +387,35 @@ namespace NGGC {
             switch (type) {
                 case Lex_Plus: {
                     addDescription("add rax, tmpReg");
-                    const unsigned char *processed = ADDTABLE[REG_RAX][regTmp];
-                    compiled->append((char *) processed, sizeof(ADDTABLE[REG_RAX][regTmp]));
+                    const unsigned char *processed = OpCodes::ADDTABLE[REG_RAX][regTmp];
+                    compiled->append((char *) processed, sizeof(OpCodes::ADDTABLE[REG_RAX][regTmp]));
                     break;
                 }
                 case Lex_Minus: {
                     addDescription("sub rax, tmpReg");
-                    const unsigned char *processed = SUBTABLE[regTmp][REG_RAX];
-                    compiled->append((char *) processed, sizeof(SUBTABLE[regTmp][REG_RAX]));
+                    const unsigned char *processed = OpCodes::SUBTABLE[regTmp][REG_RAX];
+                    compiled->append((char *) processed, sizeof(OpCodes::SUBTABLE[regTmp][REG_RAX]));
                     addDescription("mov rax, tmpReg");
-                    const movCommand mov = MOV_TABLE[REG_RAX][regTmp];
+                    const movCommand mov = OpCodes::MOV_TABLE[REG_RAX][regTmp];
                     compiled->append((char *) mov.bytecode, sizeof(mov.bytecode));
                     break;
                 }
                 case Lex_Mul: {
                     addDescription("imul rax, tmpReg");
-                    const unsigned char *processed = IMULTABLE[REG_RAX][regTmp];
-                    compiled->append((char *) processed, sizeof(IMULTABLE[REG_RAX][regTmp]));
+                    const unsigned char *processed = OpCodes::IMULTABLE[REG_RAX][regTmp];
+                    compiled->append((char *) processed, sizeof(OpCodes::IMULTABLE[REG_RAX][regTmp]));
                     break;
                 }
                 case Lex_Div: {
-                    const unsigned char *processed = XCHG_RAXTABLE[regTmp];
-                    compiled->append((char *) processed, sizeof(XCHG_RAXTABLE[regTmp]));
+                    const unsigned char *processed = OpCodes::XCHG_RAXTABLE[regTmp];
+                    compiled->append((char *) processed, sizeof(OpCodes::XCHG_RAXTABLE[regTmp]));
                     master.releaseSpecificReg(REG_RDX);
                     const unsigned prepare[] = {
                             XOR_RDXRDX,
                             COMMANDEND};
                     addInstructions(prepare, "xor before division");
-                    const unsigned char *division = IDIVTABLE[regTmp];
-                    compiled->append((char *) processed, sizeof(IDIVTABLE[regTmp]));
+                    const unsigned char *division = OpCodes::IDIVTABLE[regTmp];
+                    compiled->append((char *) processed, sizeof(OpCodes::IDIVTABLE[regTmp]));
                     break;
                 }
                 case Lex_Pow:
@@ -451,7 +451,7 @@ namespace NGGC {
             processFurther(valNode, true);
             size_t tmpId = 0;
             unsigned tmpReg = master.allocateTmp(tmpId, EXCEPT(REG_RDX));
-            const movCommand movtmp = MOV_TABLE[tmpReg][REG_RAX];
+            const movCommand movtmp = OpCodes::MOV_TABLE[tmpReg][REG_RAX];
             compiled->append((char*)movtmp.bytecode, sizeof(movtmp.bytecode));
 
             addDescription("Evaluated. Modifying stored value");
@@ -459,34 +459,34 @@ namespace NGGC {
             unsigned varReg = master.getVar(found->rbpOffset + 1, found->type, name->begin(), true, EXCEPT(tmpReg));
             switch (type) {
                 case Lex_AdAssg: {
-                    const unsigned char* processed = ADDTABLE[varReg][tmpReg];
-                    compiled->append((char*)processed, sizeof(ADDTABLE[varReg][tmpReg]));
+                    const unsigned char* processed = OpCodes::ADDTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(OpCodes::ADDTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_MiAssg: {
-                    const unsigned char* processed = SUBTABLE[varReg][tmpReg];
-                    compiled->append((char*)processed, sizeof(SUBTABLE[varReg][tmpReg]));
+                    const unsigned char* processed = OpCodes::SUBTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(OpCodes::SUBTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_MuAssg: {
-                    const unsigned char* processed = IMULTABLE[varReg][tmpReg];
-                    compiled->append((char*)processed, sizeof(IMULTABLE[varReg][tmpReg]));
+                    const unsigned char* processed = OpCodes::IMULTABLE[varReg][tmpReg];
+                    compiled->append((char*)processed, sizeof(OpCodes::IMULTABLE[varReg][tmpReg]));
                     break;
                 }
                 case Lex_DiAssg: {
-                    const movCommand movrax = MOV_TABLE[REG_RAX][varReg];
+                    const movCommand movrax = OpCodes::MOV_TABLE[REG_RAX][varReg];
                     compiled->append((char*)movrax.bytecode, sizeof(movrax.bytecode));
                     const unsigned processed[] = {
                             XOR_RDXRDX,
                             COMMANDEND
                     };
                     addInstructions(processed, "prepare for division");
-                    const unsigned char* divide = IDIVTABLE[tmpReg];
-                    compiled->append((char*)divide, sizeof(IDIVTABLE[tmpReg]));
+                    const unsigned char* divide = OpCodes::IDIVTABLE[tmpReg];
+                    compiled->append((char*)divide, sizeof(OpCodes::IDIVTABLE[tmpReg]));
                     break;
                 }
                 case Lex_Assg: {
-                    const movCommand movvar = MOV_TABLE[varReg][tmpReg];
+                    const movCommand movvar = OpCodes::MOV_TABLE[varReg][tmpReg];
                     compiled->append((char*)movvar.bytecode, sizeof(movvar.bytecode));
                     break;
                 }
@@ -519,7 +519,7 @@ namespace NGGC {
             processFurther(head->getLeft(), true);
             Optional<VarSingle> found = table.get(type.getString());
             unsigned reg = master.getVar(found->rbpOffset + 1, Var_Loc, type.getString()->begin(), false);
-            const movCommand command = MOV_TABLE[reg][REG_RAX];
+            const movCommand command = OpCodes::MOV_TABLE[reg][REG_RAX];
             compiled->append((char*)command.bytecode, sizeof(command.bytecode));
         }
 
@@ -565,14 +565,14 @@ namespace NGGC {
 
             size_t tmpId = 0;
             unsigned regTmp = master.allocateTmp(tmpId);
-            movCommand movOperation = MOV_TABLE[regTmp][REG_RAX];
+            movCommand movOperation = OpCodes::MOV_TABLE[regTmp][REG_RAX];
             compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
 
             processFurther(head->getRight(), true);
 
             size_t tmpSecond = 0;
             unsigned regTmpSecond = master.allocateTmp(tmpSecond);
-            movOperation = MOV_TABLE[regTmpSecond][REG_RAX];
+            movOperation = OpCodes::MOV_TABLE[regTmpSecond][REG_RAX];
             compiled->append((char *) movOperation.bytecode, sizeof(movOperation.bytecode));
 
             regTmp = master.getTmp(tmpId);
@@ -581,8 +581,8 @@ namespace NGGC {
             const unsigned preparecmp[] = {XOR_RAXRAX, COMMANDEND};
             addInstructions(preparecmp, "Xor rax before");
 
-            const unsigned char *compare = CMPTABLE[regTmp][regTmpSecond];
-            compiled->append((char *) compare, sizeof(CMPTABLE[regTmp][regTmpSecond]));
+            const unsigned char *compare = OpCodes::CMPTABLE[regTmp][regTmpSecond];
+            compiled->append((char *) compare, sizeof(OpCodes::CMPTABLE[regTmp][regTmpSecond]));
 
             const unsigned valid[] = {MOV_RAXIMM32, 0x01, 0x00, 0x00, 0x00, COMMANDEND};
             const unsigned commSize = sizeof(valid) / sizeof(valid[0]) - 1;
