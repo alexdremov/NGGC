@@ -124,7 +124,7 @@ To achive that, special register planner was implemented. Its interface:
 - get temporary register => allocate register for tmp use.
 - get variable => get register used for variable, or, if it is not loaded yet, select least used at the moment register and load var to it.
 
-It was essential to correctly work with structures that change program flow. For example, for the code to function correctly, it is neccessary that state of registers in the end of `while` will be tha same as the one at the beginning of condition. The same conception works for `if-else` structure. State at the end of `if` branch must be the same as one in the end of if condition. 
+It was essential to correctly work with structures that change program flow. For example, for the code to function correctly, it is neccessary that state of registers in the end of `while` will be tha same as the one at the beginning of condition. The same conception works for `if-else` structure. State at the end of `if` branch must be the same as one in the end of `if` condition. 
 
 ### In-loop variables usage optimizations
 Before entering a loop, compiler checks for used variables and force-allocate registers for them. Thus, in-loop memory access is minimal.
