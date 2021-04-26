@@ -118,6 +118,9 @@ c:  b8 00 00 00 00          mov    eax,0x0
 77: c3                      ret
 ```
 
+### In-loop variables usage optimizations
+Before entering a loop, compiler checks for used variables and force-allocate registers for them. Thus, in-loop memory access is minimal.
+
 
 ## Structure
 ### Main function: 
