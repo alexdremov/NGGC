@@ -66,7 +66,7 @@ NGGC help
 
 Why use memory when you can use registers only?
 
-This code does not use memory access at all. Planner maps registers to variables and saves values to RAM only when all registers are exhausted.
+This code does not use memory access at all (apart from requried call convention saves). Planner maps registers to variables and saves values to RAM only when all registers are exhausted.
 
 ```python
 def giveYouUp() {
