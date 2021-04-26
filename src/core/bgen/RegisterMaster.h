@@ -322,7 +322,7 @@ namespace NGGC {
         }
 
         // offset in bytes
-        unsigned getVar(int32_t offset, VarType type, const char *name, bool loadValue = true, unsigned anyButNo = -1) {
+        unsigned getVar(size_t offset, VarType type, const char *name, bool loadValue = true, unsigned anyButNo = -1) {
             RegVarUsage usageFind = {};
             if (type == Var_Loc)
                 usageFind.initLocalVar(offset, name);
@@ -339,11 +339,11 @@ namespace NGGC {
             return reg;
         }
 
-        unsigned getVarLocal(int32_t offset, VarType type, const char *name) {
+        unsigned getVarLocal(size_t offset, VarType type, const char *name) {
             getVar(offset, Var_Loc, name);
         }
 
-        unsigned getVarGlobal(int32_t offset, VarType type, const char *name) {
+        unsigned getVarGlobal(size_t offset, VarType type, const char *name) {
             getVar(offset, Var_Glob, name);
         }
 
@@ -351,12 +351,17 @@ namespace NGGC {
             registerState.deactivateReg(reg);
         }
 
-        void alignRsp() {
+        void moveRsp() {
             if ((registerState.stackLastIndex % 2) != 0)
                 subRsp((registerState.stackLastIndex % 2) * 8); // stack 16 alignment
         }
 
-        void moveRspBackAfterAlign() {
+        void prepareCall() {
+            for (unsigned int i : RegLists::callNotPreserved)
+                registerState.deactivateReg(i);
+        }
+
+        void moveRspBack() {
             if ((registerState.stackLastIndex % 2) != 0)
                 addRsp((registerState.stackLastIndex % 2) * 8); // stack 16 alignment
         }
@@ -373,19 +378,12 @@ namespace NGGC {
             subRsp(shift % 2);
         }
 
-        void prepareCallArgumentFromRAX(FastList<size_t> &ids, unsigned number) {
-            if (number <= RegLists::callRegsN) {
-                size_t idNew = tmpIdNow++;
-                ids.pushBack(idNew);
-                registerState.addTmpToReg(idNew, RegLists::callRegs[number]);
+        void prepareCallArgumentFromRAX(unsigned argsNumber, unsigned number) {
+            if (number <= RegLists::callRegsN)
                 compiledBin->append((char *) MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode,
                                     sizeof(MOV_TABLE[RegLists::callRegs[number]][REG_RAX].bytecode));
-            } else
+            else
                 compiledBin->append((char *) PUSH_TABLE[REG_RAX], sizeof(PUSH_TABLE[REG_RAX]));
-        }
-
-        void defineArguments(unsigned number) {
-            // TODO: define local arguments
         }
 
         void clearCallStack(unsigned argsNumber) {
@@ -401,11 +399,6 @@ namespace NGGC {
             setup();
         }
 
-        void deactivateCallNotPreserved() {
-            for (unsigned reg: RegLists::callNotPreserved)
-                registerState.deactivateReg(reg);
-        }
-
         void dest() {
             registerState.dest();
         }
@@ -418,11 +411,6 @@ namespace NGGC {
 
         [[nodiscard]] size_t stackUsed() const {
             return registerState.stackLastIndex;
-        }
-
-        void deactivateCallRegisters() {
-            for (unsigned reg: RegLists::callRegs)
-                registerState.deactivateReg(reg);
         }
     };
 }

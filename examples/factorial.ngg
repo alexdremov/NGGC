@@ -1,11 +1,12 @@
 def giveYouUp() {
 	let x = 0;
 	let userData = 100000;
-	print(fact(19));
+	let res = 0;
 	while(x < userData) {
-	    fact(20);
+	    res = fact(20);
 	    x += 1;
 	}
+	print res;
 }
 
 def fact(x) {
