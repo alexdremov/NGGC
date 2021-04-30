@@ -7,7 +7,9 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -Wpedantic -Wall -Wex
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast -I/usr/local/include")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  -L/usr/local/lib")
 
-include_directories(src src/helpers src/NGGC src/core/bgen src/core/eloquent/ASMStructure)
+message("${CMAKE_INSTALL_BINDIR}")
+
+include_directories(src src/helpers src/NGGC src/core/bgen src/core/eloquent/ASMStructure /usr/local/include)
 
 set(CORE_CPPS "src/core.cpp")
 add_executable(nggc ${CORE_CPPS})
