@@ -179,3 +179,10 @@ def poly(a, b) {
   print a * b;
 }
 ```
+
+## Additionally 
+
+nggcload utility takes dumped AST graph structure and generates source code.
+```bash
+nggcload <dump file name>
+```
